@@ -1,0 +1,77 @@
+<th:block xmlns:th="http://www.thymeleaf.org">
+    <section class="jumbotron text-center">
+        <div class="container">
+            <h1 class="jumbotron-heading">WEB PROGRAMMING EXAM ADMINISTRATION</h1>
+        </div>
+    </section>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-5">
+                <form action="/questions/add" method="POST">
+                    <input id="id" type="hidden" name="id" th:value="(${question} != null ? ${question.getId()} : '')">
+                    <div class="form-group">
+                        <label for="name">Question Name</label>
+                        <input type="text"
+                               class="form-control"
+                               id="name"
+                               name="name"
+                               th:value="(${question} != null ? ${question.getName()} : '')"
+                               required
+                               placeholder="Enter question name">
+                    </div>
+                    <div class="form-group">
+                        <label for="questionText">Question Text</label>
+                        <input type="text"
+                               class="form-control"
+                               id="questionText"
+                               name="questionText"
+                               th:value="(${question} != null ? ${question.getQuestionText()} : '')"
+                               placeholder="questionText">
+                    </div>
+                    <div class="form-group">
+                        <label for="generalFeedback">General Feedback</label>
+                        <input type="text"
+                               class="form-control"
+                               id="generalFeedback"
+                               name="generalFeedback"
+                               th:value="(${question} != null ? ${question.getGeneralFeedback()} : '')"
+                               placeholder="generalFeedback">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="penalty">Penalty</label>
+                        <input type="text"
+                               class="form-control"
+                               id="penalty"
+                               name="penalty"
+                               th:value="(${question} != null ? ${question.git()} : '')"
+                               placeholder="penalty">
+                    </div>
+                    <div class="form-group">
+                        <label for="hidden">Hidden</label>
+                        <input type="text"
+                               class="form-control"
+                               id="hidden"
+                               name="hidden"
+                               th:value="(${question} != null ? ${question.isHidden()} : '')"
+                               placeholder="hidden">
+                    </div>
+                    <div class="form-group">
+                        <label for="idNumber">Id Number</label>
+                        <input type="text"
+                               class="form-control"
+                               id="idNumber"
+                               name="idNumber"
+                               th:value="(${question} != null ? ${question.getIdNumber()} : '')"
+                               placeholder="idNumber">
+                    </div>
+                    <button id="submit" type="submit" class="btn btn-primary">Submit</button>
+                    <a type="button" class="btn btn-primary" href="/questions">Back</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+</th:block>
