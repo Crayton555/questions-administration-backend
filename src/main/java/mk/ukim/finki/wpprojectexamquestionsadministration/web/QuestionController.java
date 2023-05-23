@@ -7,6 +7,12 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 import java.io.File;
 import java.util.List;
@@ -106,5 +112,46 @@ public class QuestionController {
             // Handle file processing error
             return "redirect:/questions";
         }
+    }
+
+    @GetMapping(value = "/exportXMLFile", produces = MediaType.APPLICATION_XML_VALUE)
+    public void exportXMLFile(HttpServletResponse response) throws IOException {
+        // Get the list of questions from the service
+        List<Question> questions = questionService.findAll();
+
+        // Create the XML content
+        String xmlContent = generateXmlContent(questions);
+
+        // Set the response headers
+        response.setContentType(MediaType.APPLICATION_XML_VALUE);
+        response.setHeader("Content-Disposition", "attachment; filename=questions.xml");
+
+        // Write the XML content to the response
+        response.getWriter().write(xmlContent);
+    }
+
+    private String generateXmlContent(List<Question> questions) {
+        // Generate the XML content based on the questions
+        // You can use libraries like JAXB or Jackson XML to convert the objects to XML
+
+        // Here's a simplified example using StringBuilder
+        StringBuilder xmlBuilder = new StringBuilder();
+        xmlBuilder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xmlBuilder.append("<questions>\n");
+
+        for (Question question : questions) {
+            xmlBuilder.append("  <question>\n");
+            xmlBuilder.append("    <name>").append(question.getName()).append("</name>\n");
+            xmlBuilder.append("    <questionText>").append(question.getQuestionText()).append("</questionText>\n");
+            xmlBuilder.append("    <generalFeedback>").append(question.getGeneralFeedback()).append("</generalFeedback>\n");
+            xmlBuilder.append("    <penalty>").append(question.getPenalty()).append("</penalty>\n");
+            xmlBuilder.append("    <hidden>").append(question.isHidden()).append("</hidden>\n");
+            xmlBuilder.append("    <idNumber>").append(question.getIdNumber()).append("</idNumber>\n");
+            xmlBuilder.append("  </question>\n");
+        }
+
+        xmlBuilder.append("</questions>");
+
+        return xmlBuilder.toString();
     }
 }
