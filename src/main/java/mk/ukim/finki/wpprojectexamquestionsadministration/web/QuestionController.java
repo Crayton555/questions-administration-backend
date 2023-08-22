@@ -2,6 +2,7 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.web;
 
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Question;
 import mk.ukim.finki.wpprojectexamquestionsadministration.service.QuestionService;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -19,6 +20,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.thymeleaf.util.StringUtils.escapeXml;
+
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 @Controller
 @RequestMapping("/questions")
