@@ -14,8 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
-import java.io.File;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+
+import static org.thymeleaf.util.StringUtils.escapeXml;
 
 @Controller
 @RequestMapping("/questions")
@@ -116,37 +119,40 @@ public class QuestionController {
 
     @GetMapping(value = "/exportXMLFile", produces = MediaType.APPLICATION_XML_VALUE)
     public void exportXMLFile(HttpServletResponse response) throws IOException {
-        // Get the list of questions from the service
         List<Question> questions = questionService.findAll();
 
-        // Create the XML content
+        response.setHeader("Content-Disposition", "attachment; filename=questions.xml");
+        response.setContentType(MediaType.APPLICATION_XML_VALUE);
+        response.setCharacterEncoding("UTF-8");
+
         String xmlContent = generateXmlContent(questions);
 
-        // Set the response headers
-        response.setContentType(MediaType.APPLICATION_XML_VALUE);
-        response.setHeader("Content-Disposition", "attachment; filename=questions.xml");
-
-        // Write the XML content to the response
-        response.getWriter().write(xmlContent);
+        try (OutputStream outputStream = response.getOutputStream()) {
+            byte[] contentBytes = xmlContent.getBytes(StandardCharsets.UTF_8);
+            outputStream.write(contentBytes);
+            outputStream.flush();
+        }
     }
 
     private String generateXmlContent(List<Question> questions) {
-        // Generate the XML content based on the questions
-        // You can use libraries like JAXB or Jackson XML to convert the objects to XML
-
-        // Here's a simplified example using StringBuilder
         StringBuilder xmlBuilder = new StringBuilder();
-        xmlBuilder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xmlBuilder.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
         xmlBuilder.append("<questions>\n");
 
         for (Question question : questions) {
-            xmlBuilder.append("  <question>\n");
-            xmlBuilder.append("    <name>").append(question.getName()).append("</name>\n");
-            xmlBuilder.append("    <questionText>").append(question.getQuestionText()).append("</questionText>\n");
-            xmlBuilder.append("    <generalFeedback>").append(question.getGeneralFeedback()).append("</generalFeedback>\n");
+            xmlBuilder.append("  <question type=\"cloze\">\n");
+            xmlBuilder.append("    <name>\n");
+            xmlBuilder.append("      <text>").append(escapeXml(question.getName())).append("</text>\n");
+            xmlBuilder.append("    </name>\n");
+            xmlBuilder.append("    <questiontext format=\"html\">\n");
+            xmlBuilder.append("      <text><![CDATA[").append(question.getQuestionText()).append("]]></text>\n");
+            xmlBuilder.append("    </questiontext>\n");
+            xmlBuilder.append("    <generalfeedback format=\"html\">\n");
+            xmlBuilder.append("      <text></text>\n");
+            xmlBuilder.append("    </generalfeedback>\n");
             xmlBuilder.append("    <penalty>").append(question.getPenalty()).append("</penalty>\n");
             xmlBuilder.append("    <hidden>").append(question.isHidden()).append("</hidden>\n");
-            xmlBuilder.append("    <idNumber>").append(question.getIdNumber()).append("</idNumber>\n");
+            xmlBuilder.append("    <idnumber></idnumber>\n");
             xmlBuilder.append("  </question>\n");
         }
 
@@ -154,4 +160,6 @@ public class QuestionController {
 
         return xmlBuilder.toString();
     }
+
+
 }
