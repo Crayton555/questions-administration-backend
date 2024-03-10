@@ -1,8 +1,8 @@
-package mk.ukim.finki.wpprojectexamquestionsadministration.web;
+package mk.ukim.finki.wpprojectexamquestionsadministration.web.controller;
 
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.User;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.InvalidUserCredentialsException;
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.AuthService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.AuthService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -4,7 +4,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.User;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.InvalidArgumentsException;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.InvalidUserCredentialsException;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.UserRepository;
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.AuthService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.AuthService;
 import org.springframework.stereotype.Service;
 
 @Service

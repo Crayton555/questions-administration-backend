@@ -6,7 +6,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.Inval
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.PasswordsDoNotMatchException;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.UsernameAlreadyExistsException;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.UserRepository;
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.UserService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.UserService;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;

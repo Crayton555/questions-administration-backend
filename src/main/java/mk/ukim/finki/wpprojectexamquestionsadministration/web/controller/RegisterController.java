@@ -1,10 +1,10 @@
-package mk.ukim.finki.wpprojectexamquestionsadministration.web;
+package mk.ukim.finki.wpprojectexamquestionsadministration.web.controller;
 
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Role;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.InvalidArgumentsException;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.exceptions.PasswordsDoNotMatchException;
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.AuthService;
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.UserService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.AuthService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.UserService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;

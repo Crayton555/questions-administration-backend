@@ -13,6 +13,7 @@
                     <table class="table table-striped">
                         <thead>
                         <tr>
+                            <th scope="col">Question ID</th>
                             <th scope="col">Question Name</th>
                             <th scope="col">Question Text</th>
                             <th scope="col">General Feedback</th>
@@ -23,6 +24,7 @@
                         </thead>
                         <tbody>
                         <tr th:each="question : ${questions}" class="question">
+                            <td th:text="${question.getId()}"></td>
                             <td th:text="${question.getName()}"></td>
                             <td th:utext="${question.getQuestionText()}"></td>
                             <td th:text="${question.getGeneralFeedback()}"></td>

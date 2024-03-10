@@ -1,4 +1,4 @@
-package mk.ukim.finki.wpprojectexamquestionsadministration.service;
+package mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces;
 
 
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Role;

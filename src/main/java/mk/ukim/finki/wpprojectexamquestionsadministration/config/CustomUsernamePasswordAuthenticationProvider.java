@@ -1,6 +1,6 @@
 package mk.ukim.finki.wpprojectexamquestionsadministration.config;
 
-import mk.ukim.finki.wpprojectexamquestionsadministration.service.UserService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.interfaces.UserService;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
