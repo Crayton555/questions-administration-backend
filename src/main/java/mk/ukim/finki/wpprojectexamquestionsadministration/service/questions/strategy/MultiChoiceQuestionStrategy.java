@@ -9,6 +9,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.Categor
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -25,9 +26,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
     private final CategoryRepository categoryRepository;
     private final LabelRepository labelRepository;
 
-    public MultiChoiceQuestionStrategy(QuestionRepository questionRepository,
-                                       CategoryRepository categoryRepository,
-                                       LabelRepository labelRepository) {
+    public MultiChoiceQuestionStrategy(QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.labelRepository = labelRepository;
@@ -58,9 +57,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
 
     @Override
     public Optional<MultiChoiceQuestion> findById(Long id) {
-        return questionRepository.findById(id)
-                .filter(question -> question instanceof MultiChoiceQuestion)
-                .map(question -> (MultiChoiceQuestion) question);
+        return questionRepository.findById(id).filter(question -> question instanceof MultiChoiceQuestion).map(question -> (MultiChoiceQuestion) question);
     }
 
     private void populateQuestionFields(MultiChoiceQuestion question, MultiChoiceQuestionDto questionDto) {
@@ -79,25 +76,26 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         question.setCorrectFeedback(questionDto.getCorrectFeedback());
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
-        question.setAnswerOptions(questionDto.getAnswerOptions().stream()
-                .map(dto -> new MultiChoiceQuestion.Answer(dto.getFraction(), dto.getText(), dto.getFeedback()))
-                .collect(Collectors.toList()));
+        question.setAnswerOptions(questionDto.getAnswerOptions().stream().map(dto -> new MultiChoiceQuestion.Answer(dto.getFraction(), dto.getText(), dto.getFeedback())).collect(Collectors.toList()));
 
-        Category category = categoryRepository.findById(questionDto.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+        Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
+
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
         question.setLabels(labels);
     }
+
     @Override
     public Class<MultiChoiceQuestion> getQuestionType() {
         return MultiChoiceQuestion.class;
     }
+
     @Override
-    public  Class<MultiChoiceQuestionDto> getQuestionDtoType(){
+    public Class<MultiChoiceQuestionDto> getQuestionDtoType() {
         return MultiChoiceQuestionDto.class;
     }
+
     @Override
     public boolean isResponsibleFor(String type) {
         return "multichoice".equals(type);
@@ -148,8 +146,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
                 Element tagElement = (Element) tagNode;
                 String tagText = tagElement.getTextContent();
                 if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText)
-                            .orElseGet(() -> labelRepository.save(new Label(tagText)));
+                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
                     question.getLabels().add(label);
                 }
             }
@@ -157,6 +154,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
 
         return Optional.of(questionRepository.save(question));
     }
+
     private double parseDouble(String value) {
         try {
             return Double.parseDouble(value);
@@ -164,9 +162,11 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
             return 0.0;
         }
     }
+
     private boolean parseBoolean(String value) {
         return "true".equalsIgnoreCase(value) || "1".equals(value);
     }
+
     private String getTextContentByTagName(Element element, String tagName) {
         NodeList elements = element.getElementsByTagName(tagName);
         if (elements != null && elements.getLength() > 0) {
@@ -183,5 +183,86 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
             return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
         }
         return "";
+    }
+
+    @Override
+    public Element toXmlElement(MultiChoiceQuestion question, Document doc) {
+        // Create the root question element
+        Element questionElement = doc.createElement("question");
+        questionElement.setAttribute("type", "multichoice");
+
+        // Name
+        Element nameElement = createTextElement(doc, "name", question.getName());
+        questionElement.appendChild(nameElement);
+
+        // Question text
+        Element questionTextElement = createFormattedTextElement(doc, "questiontext", "html", question.getQuestionText());
+        questionElement.appendChild(questionTextElement);
+
+        // General feedback
+        Element generalFeedbackElement = createFormattedTextElement(doc, "generalfeedback", "html", question.getGeneralFeedback());
+        questionElement.appendChild(generalFeedbackElement);
+
+        // Default grade
+        questionElement.appendChild(createTextElement(doc, "defaultgrade", Double.toString(question.getDefaultGrade())));
+
+        // Penalty
+        questionElement.appendChild(createTextElement(doc, "penalty", Double.toString(question.getPenalty())));
+
+        // Hidden
+        questionElement.appendChild(createTextElement(doc, "hidden", question.isHidden() ? "1" : "0"));
+
+        // Single answer
+        questionElement.appendChild(createTextElement(doc, "single", question.isSingle() ? "true" : "false"));
+
+        // Shuffle answers
+        questionElement.appendChild(createTextElement(doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false"));
+
+        // Answer numbering
+        questionElement.appendChild(createTextElement(doc, "answernumbering", question.getAnswerNumbering()));
+
+        // Correct feedback
+        questionElement.appendChild(createFormattedTextElement(doc, "correctfeedback", "html", question.getCorrectFeedback()));
+
+        // Partially correct feedback
+        questionElement.appendChild(createFormattedTextElement(doc, "partiallycorrectfeedback", "html", question.getPartiallyCorrectFeedback()));
+
+        // Incorrect feedback
+        questionElement.appendChild(createFormattedTextElement(doc, "incorrectfeedback", "html", question.getIncorrectFeedback()));
+
+        // Answer options
+        for (MultiChoiceQuestion.Answer answer : question.getAnswerOptions()) {
+            Element answerElement = doc.createElement("answer");
+            answerElement.setAttribute("fraction", Double.toString(answer.getFraction()));
+            answerElement.setAttribute("format", "html");
+
+            Element textElement = doc.createElement("text");
+            textElement.appendChild(doc.createCDATASection(answer.getText()));
+            answerElement.appendChild(textElement);
+
+            if (answer.getFeedback() != null && !answer.getFeedback().isEmpty()) {
+                Element feedbackElement = createFormattedTextElement(doc, "feedback", "html", answer.getFeedback());
+                answerElement.appendChild(feedbackElement);
+            }
+
+            questionElement.appendChild(answerElement);
+        }
+
+        return questionElement;
+    }
+
+    private Element createTextElement(Document doc, String tagName, String textContent) {
+        Element element = doc.createElement(tagName);
+        element.appendChild(doc.createTextNode(textContent));
+        return element;
+    }
+
+    private Element createFormattedTextElement(Document doc, String tagName, String format, String content) {
+        Element element = doc.createElement(tagName);
+        element.setAttribute("format", format);
+        Element textElement = doc.createElement("text");
+        textElement.appendChild(doc.createCDATASection(content));
+        element.appendChild(textElement);
+        return element;
     }
 }

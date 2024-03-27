@@ -4,6 +4,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.LabelDto;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.*;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.BaseQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.service.IQuestionService;
+import mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.service.QuestionXmlExportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,8 +12,14 @@ import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.multipart.MultipartFile;
+import org.w3c.dom.Document;
 
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.List;
 
 @RestController
@@ -22,11 +29,13 @@ public class QuestionRestController {
 
     private final IQuestionService<BaseQuestion, Object> questionService;
     private final ObjectMapper objectMapper;
+    private final QuestionXmlExportService xmlExportService;
 
     @Autowired
-    public QuestionRestController(IQuestionService<BaseQuestion, Object> questionService, ObjectMapper objectMapper) {
+    public QuestionRestController(IQuestionService<BaseQuestion, Object> questionService, ObjectMapper objectMapper, QuestionXmlExportService xmlExportService) {
         this.questionService = questionService;
         this.objectMapper = objectMapper;
+        this.xmlExportService = xmlExportService;
     }
 
     @GetMapping
@@ -37,9 +46,7 @@ public class QuestionRestController {
 
     @GetMapping("/{id}")
     public ResponseEntity<BaseQuestion> getQuestionById(@PathVariable Long id) {
-        return questionService.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return questionService.findById(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/add")
@@ -120,9 +127,7 @@ public class QuestionRestController {
 
     @PutMapping("/{questionId}/change-question-category/{newCategoryId}")
     public ResponseEntity<BaseQuestion> changeQuestionCategory(@PathVariable Long questionId, @PathVariable Long newCategoryId) {
-        return questionService.changeQuestionCategory(questionId, newCategoryId)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return questionService.changeQuestionCategory(questionId, newCategoryId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{questionId}/labels")
@@ -144,8 +149,25 @@ public class QuestionRestController {
             questionService.processQuestionsFromXml(xmlData);
             return ResponseEntity.ok("Successfully processed XML file.");
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to process XML file: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process XML file: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/export/xml")
+    public ResponseEntity<String> exportQuestionsToXml() {
+        try {
+            Document xmlDocument = xmlExportService.exportQuestionsToXml();
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            StringWriter writer = new StringWriter();
+            transformer.transform(new DOMSource(xmlDocument), new StreamResult(writer));
+            String xmlString = writer.getBuffer().toString();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Type", "application/xml");
+            return ResponseEntity.ok().headers(headers).body(xmlString);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error exporting questions to XML: " + e.getMessage());
         }
     }
 }

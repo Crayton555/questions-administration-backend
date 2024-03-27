@@ -9,6 +9,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.Categor
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -201,5 +202,60 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
             return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
         }
         return "";
+    }
+
+    @Override
+    public Element toXmlElement(EssayQuestion question, Document doc) {
+        // Create the root element for the question
+        Element questionElement = doc.createElement("question");
+        questionElement.setAttribute("type", "essay");
+
+        // Add question name
+        Element nameElement = doc.createElement("name");
+        Element nameTextElement = doc.createElement("text");
+        nameTextElement.appendChild(doc.createTextNode(question.getName()));
+        nameElement.appendChild(nameTextElement);
+        questionElement.appendChild(nameElement);
+
+        // Add question text
+        Element questionTextElement = doc.createElement("questiontext");
+        questionTextElement.setAttribute("format", question.getResponseFormat());
+        Element questionTextTextElement = doc.createElement("text");
+        questionTextTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
+        questionTextElement.appendChild(questionTextTextElement);
+        questionElement.appendChild(questionTextElement);
+
+        // Add general feedback
+        Element generalFeedbackElement = doc.createElement("generalfeedback");
+        Element generalFeedbackTextElement = doc.createElement("text");
+        generalFeedbackTextElement.appendChild(doc.createTextNode(question.getGeneralFeedback()));
+        generalFeedbackElement.appendChild(generalFeedbackTextElement);
+        questionElement.appendChild(generalFeedbackElement);
+
+        // Optional: Add other fields like penalty, hidden, idNumber, defaultGrade, etc., similar to above.
+
+        // Add category
+        Element categoryElement = doc.createElement("category");
+        Element categoryTextElement = doc.createElement("text");
+        if (question.getCategory() != null) {
+            categoryTextElement.appendChild(doc.createTextNode(question.getCategory().getName()));
+        } else {
+            categoryTextElement.appendChild(doc.createTextNode("Default Category"));
+        }
+        categoryElement.appendChild(categoryTextElement);
+        questionElement.appendChild(categoryElement);
+
+        // Optionally add labels as tags
+        if (!question.getLabels().isEmpty()) {
+            for (Label label : question.getLabels()) {
+                Element tagElement = doc.createElement("tag");
+                tagElement.appendChild(doc.createTextNode(label.getName()));
+                questionElement.appendChild(tagElement);
+            }
+        }
+
+        // Optionally, add custom fields specific to EssayQuestions like responseTemplate, fileTypesList, etc.
+
+        return questionElement;
     }
 }
