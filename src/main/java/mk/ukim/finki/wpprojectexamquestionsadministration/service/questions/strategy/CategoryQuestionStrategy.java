@@ -8,6 +8,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.Categor
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -163,5 +164,39 @@ public class CategoryQuestionStrategy implements QuestionStrategy<CategoryQuesti
             return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
         }
         return "";
+    }
+
+    @Override
+    public Element toXmlElement(CategoryQuestion question, Document doc) {
+        // Create the root element for this question
+        Element questionElement = doc.createElement("question");
+        questionElement.setAttribute("type", "category");
+
+        // Create and append the <category> element
+        Element categoryElement = doc.createElement("category");
+        Element categoryTextElement = doc.createElement("text");
+        categoryTextElement.setTextContent(question.getCategory().getName());
+        categoryElement.appendChild(categoryTextElement);
+        questionElement.appendChild(categoryElement);
+
+        // Create and append the <info> element
+        Element infoElement = doc.createElement("info");
+        infoElement.setAttribute("format", "html"); // Assuming format is always "html"
+        Element infoTextElement = doc.createElement("text");
+        infoTextElement.setTextContent(question.getInfoText() != null ? question.getInfoText() : "");
+        infoElement.appendChild(infoTextElement);
+        questionElement.appendChild(infoElement);
+
+        // Create and append the <idnumber> element, if present
+        if (question.getIdNumber() != null && !question.getIdNumber().isEmpty()) {
+            Element idNumberElement = doc.createElement("idnumber");
+            idNumberElement.setTextContent(question.getIdNumber());
+            questionElement.appendChild(idNumberElement);
+        } else {
+            // Even if idNumber is null or empty, append an empty <idnumber> element as per the provided structure
+            questionElement.appendChild(doc.createElement("idnumber"));
+        }
+
+        return questionElement;
     }
 }

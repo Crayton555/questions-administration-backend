@@ -9,9 +9,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.Categor
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import org.springframework.stereotype.Service;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.w3c.dom.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,9 +23,7 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
     private final CategoryRepository categoryRepository;
     private final LabelRepository labelRepository;
 
-    public MatchingQuestionStrategy(QuestionRepository questionRepository,
-                                    CategoryRepository categoryRepository,
-                                    LabelRepository labelRepository) {
+    public MatchingQuestionStrategy(QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.labelRepository = labelRepository;
@@ -58,9 +54,7 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
 
     @Override
     public Optional<MatchingQuestion> findById(Long id) {
-        return questionRepository.findById(id)
-                .filter(question -> question instanceof MatchingQuestion)
-                .map(question -> (MatchingQuestion) question);
+        return questionRepository.findById(id).filter(question -> question instanceof MatchingQuestion).map(question -> (MatchingQuestion) question);
     }
 
     private void populateQuestionFields(MatchingQuestion question, MatchingQuestionDto questionDto) {
@@ -77,12 +71,9 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
         question.setShowNumCorrect(questionDto.isShowNumCorrect());
-        question.setSubQuestions(questionDto.getSubQuestions().stream()
-                .map(dto -> new MatchingQuestion.SubQuestion(dto.getText(), dto.getAnswer()))
-                .collect(Collectors.toList()));
+        question.setSubQuestions(questionDto.getSubQuestions().stream().map(dto -> new MatchingQuestion.SubQuestion(dto.getText(), dto.getAnswer())).collect(Collectors.toList()));
 
-        Category category = categoryRepository.findById(questionDto.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+        Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
@@ -146,8 +137,7 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
                 Element tagElement = (Element) tagNode;
                 String tagText = tagElement.getTextContent();
                 if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText)
-                            .orElseGet(() -> labelRepository.save(new Label(tagText)));
+                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
                     question.getLabels().add(label);
                 }
             }
@@ -184,5 +174,90 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
             return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
         }
         return "";
+    }
+
+    @Override
+    public Element toXmlElement(MatchingQuestion question, Document doc) {
+        // Create the root question element
+        Element questionElement = doc.createElement("question");
+        questionElement.setAttribute("type", "matching");
+
+        // Name
+        Element nameElement = createTextElement(doc, "name", question.getName());
+        questionElement.appendChild(nameElement);
+
+        // Question text
+        Element questionTextElement = createFormattedTextElement(doc, "questiontext", "html", question.getQuestionText());
+        questionElement.appendChild(questionTextElement);
+
+        // General feedback
+        Element generalFeedbackElement = createFormattedTextElement(doc, "generalfeedback", "html", question.getGeneralFeedback());
+        questionElement.appendChild(generalFeedbackElement);
+
+        // Default grade
+        questionElement.appendChild(createTextElement(doc, "defaultgrade", String.valueOf(question.getDefaultGrade())));
+
+        // Penalty
+        questionElement.appendChild(createTextElement(doc, "penalty", String.valueOf(question.getPenalty())));
+
+        // Hidden
+        questionElement.appendChild(createTextElement(doc, "hidden", question.isHidden() ? "1" : "0"));
+
+        // Shuffle answers
+        questionElement.appendChild(createTextElement(doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false"));
+
+        // Correct feedback
+        Element correctFeedbackElement = createFormattedTextElement(doc, "correctfeedback", "html", question.getCorrectFeedback());
+        questionElement.appendChild(correctFeedbackElement);
+
+        // Partially correct feedback
+        Element partiallyCorrectFeedbackElement = createFormattedTextElement(doc, "partiallycorrectfeedback", "html", question.getPartiallyCorrectFeedback());
+        questionElement.appendChild(partiallyCorrectFeedbackElement);
+
+        // Incorrect feedback
+        Element incorrectFeedbackElement = createFormattedTextElement(doc, "incorrectfeedback", "html", question.getIncorrectFeedback());
+        questionElement.appendChild(incorrectFeedbackElement);
+
+        // Show num correct
+        if (question.isShowNumCorrect()) {
+            questionElement.appendChild(createTextElement(doc, "shownumcorrect", ""));
+        }
+
+        // Subquestions
+        for (MatchingQuestion.SubQuestion subQuestion : question.getSubQuestions()) {
+            Element subQuestionElement = doc.createElement("subquestion");
+            subQuestionElement.setAttribute("format", "html");
+            subQuestionElement.appendChild(createCDATAElement(doc, "text", subQuestion.getText()));
+
+            Element answerElement = doc.createElement("answer");
+            answerElement.appendChild(createCDATAElement(doc, "text", subQuestion.getAnswer()));
+
+            subQuestionElement.appendChild(answerElement);
+            questionElement.appendChild(subQuestionElement);
+        }
+
+        return questionElement;
+    }
+
+    private Element createTextElement(Document doc, String tagName, String text) {
+        Element element = doc.createElement(tagName);
+        element.appendChild(doc.createTextNode(text));
+        return element;
+    }
+
+    private Element createFormattedTextElement(Document doc, String tagName, String format, String text) {
+        Element element = doc.createElement(tagName);
+        element.setAttribute("format", format);
+        Element textElement = doc.createElement("text");
+        textElement.appendChild(doc.createCDATASection(text));
+        element.appendChild(textElement);
+        return element;
+    }
+
+    private Element createCDATAElement(Document doc, String tagName, String cdataText) {
+        Element textElement = doc.createElement(tagName);
+        CDATASection cdataSection = doc.createCDATASection(cdataText);
+        textElement.appendChild(cdataSection);
+        return textElement;
     }
 }

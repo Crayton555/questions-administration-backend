@@ -8,6 +8,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.Categor
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -21,9 +22,8 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
     private final QuestionRepository questionRepository;
     private final CategoryRepository categoryRepository;
     private final LabelRepository labelRepository;
-    public ClozeQuestionStrategy(QuestionRepository questionRepository,
-                                 CategoryRepository categoryRepository,
-                                 LabelRepository labelRepository) {
+
+    public ClozeQuestionStrategy(QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.labelRepository = labelRepository;
@@ -54,9 +54,7 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
 
     @Override
     public Optional<ClozeQuestion> findById(Long id) {
-        return questionRepository.findById(id)
-                .filter(question -> question instanceof ClozeQuestion)
-                .map(question -> (ClozeQuestion) question);
+        return questionRepository.findById(id).filter(question -> question instanceof ClozeQuestion).map(question -> (ClozeQuestion) question);
     }
 
     private void populateQuestionFields(ClozeQuestion question, ClozeQuestionDto questionDto) {
@@ -68,19 +66,20 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
         question.setHidden(questionDto.isHidden());
         question.setIdNumber(questionDto.getIdNumber());
 
-        Category category = categoryRepository.findById(questionDto.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+        Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
         question.setLabels(labels);
     }
+
     @Override
     public Class<ClozeQuestion> getQuestionType() {
         return ClozeQuestion.class;
     }
+
     @Override
-    public  Class<ClozeQuestionDto> getQuestionDtoType(){
+    public Class<ClozeQuestionDto> getQuestionDtoType() {
         return ClozeQuestionDto.class;
     }
 
@@ -117,8 +116,7 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
                 Element tagElement = (Element) tagNode;
                 String tagText = tagElement.getTextContent();
                 if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText)
-                            .orElseGet(() -> labelRepository.save(new Label(tagText)));
+                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
                     question.getLabels().add(label);
                 }
             }
@@ -143,5 +141,33 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
             return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
         }
         return "";
+    }
+
+    @Override
+    public Element toXmlElement(ClozeQuestion question, Document doc) {
+        // Create the root element for the question
+        Element questionElement = doc.createElement("question");
+        questionElement.setAttribute("type", "cloze");
+
+        // Add the category element
+        Element categoryElement = doc.createElement("category");
+        questionElement.appendChild(categoryElement);
+
+        // Add the text element to category
+        Element categoryTextElement = doc.createElement("text");
+        categoryTextElement.appendChild(doc.createTextNode("$course$/top/Default for ОС-20//21/Прашања од предавања (Сашо Граматиков)")); // Example path, replace as needed
+        categoryElement.appendChild(categoryTextElement);
+
+        // Add the question text (info) element
+        Element infoElement = doc.createElement("info");
+        infoElement.setAttribute("format", "html");
+        Element infoTextElement = doc.createElement("text");
+        infoTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
+        infoElement.appendChild(infoTextElement);
+        questionElement.appendChild(infoElement);
+
+        // Optionally add other details like idnumber, general feedback, etc. if needed
+
+        return questionElement;
     }
 }

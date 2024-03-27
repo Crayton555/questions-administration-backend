@@ -1,6 +1,7 @@
 package mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.strategy;
 
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.BaseQuestion;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.util.Optional;
@@ -18,4 +19,5 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
     Class<D> getQuestionDtoType();
     boolean isResponsibleFor(String type);
     public Optional<T> saveFromXml(Element questionElement);
+    Element toXmlElement(T question, Document doc);
 }
