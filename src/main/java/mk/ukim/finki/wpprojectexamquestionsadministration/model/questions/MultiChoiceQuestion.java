@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 
 import javax.persistence.*;
 import java.util.ArrayList;
@@ -21,9 +22,14 @@ public class MultiChoiceQuestion extends BaseQuestion {
     private String answerNumbering;
     private boolean showStandardInstruction = false;
     private String correctFeedback;
+    @Enumerated(EnumType.STRING)
+    private FormatType correctFeedbackFormat = FormatType.HTML;
     private String partiallyCorrectFeedback;
+    @Enumerated(EnumType.STRING)
+    private FormatType partiallyCorrectFeedbackFormat = FormatType.HTML;
     private String incorrectFeedback;
-
+    @Enumerated(EnumType.STRING)
+    private FormatType incorrectFeedbackFormat = FormatType.HTML;
     @ElementCollection
     private List<Answer> answerOptions = new ArrayList<>();
 
@@ -33,7 +39,11 @@ public class MultiChoiceQuestion extends BaseQuestion {
     @AllArgsConstructor
     public static class Answer {
         private double fraction;
+        @Enumerated(EnumType.STRING)
+        private FormatType answerFormat = FormatType.HTML;
         private String text;
         private String feedback;
+        @Enumerated(EnumType.STRING)
+        private FormatType feedbackFormat = FormatType.HTML;
     }
 }

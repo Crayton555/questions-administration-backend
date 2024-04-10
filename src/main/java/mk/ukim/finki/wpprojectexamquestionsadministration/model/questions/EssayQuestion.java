@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 
 import javax.persistence.*;
 import java.util.ArrayList;
@@ -29,5 +30,9 @@ public class EssayQuestion extends BaseQuestion {
     @Column(name = "file_type")
     private List<String> fileTypesList = new ArrayList<>();
     private String graderInfo;
+    @Enumerated(EnumType.STRING)
+    private FormatType graderInfoFormat = FormatType.HTML;
     private String responseTemplate;
+    @Enumerated(EnumType.STRING)
+    private FormatType responseTemplateFormat = FormatType.HTML;
 }

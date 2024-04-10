@@ -3,6 +3,7 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.str
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.CategoryQuestionDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.CategoryQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
@@ -23,9 +24,7 @@ public class CategoryQuestionStrategy implements QuestionStrategy<CategoryQuesti
     private final CategoryRepository categoryRepository;
     private final LabelRepository labelRepository;
 
-    public CategoryQuestionStrategy(QuestionRepository questionRepository,
-                                    CategoryRepository categoryRepository,
-                                    LabelRepository labelRepository) {
+    public CategoryQuestionStrategy(QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.labelRepository = labelRepository;
@@ -56,9 +55,7 @@ public class CategoryQuestionStrategy implements QuestionStrategy<CategoryQuesti
 
     @Override
     public Optional<CategoryQuestion> findById(Long id) {
-        return questionRepository.findById(id)
-                .filter(question -> question instanceof CategoryQuestion)
-                .map(question -> (CategoryQuestion) question);
+        return questionRepository.findById(id).filter(question -> question instanceof CategoryQuestion).map(question -> (CategoryQuestion) question);
     }
 
     private void populateQuestionFields(CategoryQuestion question, CategoryQuestionDto questionDto) {
@@ -72,8 +69,11 @@ public class CategoryQuestionStrategy implements QuestionStrategy<CategoryQuesti
         question.setCategoryText(questionDto.getCategoryText());
         question.setInfoText(questionDto.getInfoText());
 
-        Category category = categoryRepository.findById(questionDto.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+        question.setInfoTextFormat(questionDto.getInfoTextFormat());
+
+        Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
@@ -95,106 +95,76 @@ public class CategoryQuestionStrategy implements QuestionStrategy<CategoryQuesti
         return "category".equals(type);
     }
 
-    @Override
     public Optional<CategoryQuestion> saveFromXml(Element questionElement) {
-        //String name = getTextContentByTagName(questionElement, "name");
-        String name = getTextContentByTagName(questionElement, "category");
-        //String questionText = getTextContentByTagName(questionElement, "questiontext");
-        String questionText = getTextContentByTagName(questionElement, "info");
-        String generalFeedback = getTextContentByTagName(questionElement, "generalfeedback");
-        String penaltyText = getTextContentByTagName(questionElement, "penalty").trim();
-        double penalty = 0.0;
-        if (!penaltyText.isEmpty()) {
-            try {
-                penalty = Double.parseDouble(penaltyText);
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid format for penalty, using default value: " + penalty);
-            }
+        NodeList categoryList = questionElement.getElementsByTagName("category");
+        String categoryText = "";
+        if (categoryList.getLength() > 0) {
+            Element categoryElement = (Element) categoryList.item(0);
+            categoryText = categoryElement.getTextContent();
         }
-        String hiddenText = getTextContentByTagName(questionElement, "hidden");
-        boolean hidden = "1".equals(hiddenText);
-        String idNumber = getTextContentByTagName(questionElement, "idnumber");
-        // categoryText = getTextContentByTagName(questionElement, "category");
-        //String infoText = getTextContentByTagName(questionElement, "info");
+
+        NodeList infoList = questionElement.getElementsByTagName("info");
+        String infoText = "";
+        FormatType infoTextFormat = FormatType.HTML;
+        if (infoList.getLength() > 0) {
+            Element infoElement = (Element) infoList.item(0);
+            infoText = infoElement.getTextContent();
+            String format = infoElement.getAttribute("format");
+            infoTextFormat = FormatType.valueOf(format.toUpperCase());
+        }
+
+        NodeList idNumberList = questionElement.getElementsByTagName("idnumber");
+        String idNumber = "";
+        if (idNumberList.getLength() > 0) {
+            idNumber = idNumberList.item(0).getTextContent();
+        }
 
         CategoryQuestion question = new CategoryQuestion();
-        question.setQuestionType("CategoryQuestion");
-        question.setName(name);
-        question.setQuestionText(questionText);
-        question.setGeneralFeedback(generalFeedback);
-        question.setPenalty(penalty);
-        question.setHidden(hidden);
+        question.setCategoryText(categoryText);
+        question.setInfoText(infoText);
+        question.setInfoTextFormat(infoTextFormat);
         question.setIdNumber(idNumber);
-        //question.setCategoryText(categoryText);
-        //question.setInfoText(infoText);
+        question.setName(categoryText);
+        question.setQuestionText(infoText);
 
         Category defaultCategory = categoryRepository.findAll().get(0);
         question.setCategory(defaultCategory);
 
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText)
-                            .orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
-
         return Optional.of(questionRepository.save(question));
     }
 
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
-    @Override
     public Element toXmlElement(CategoryQuestion question, Document doc) {
-        // Create the root element for this question
         Element questionElement = doc.createElement("question");
         questionElement.setAttribute("type", "category");
 
-        // Create and append the <category> element
         Element categoryElement = doc.createElement("category");
-        Element categoryTextElement = doc.createElement("text");
-        categoryTextElement.setTextContent(question.getCategory().getName());
-        categoryElement.appendChild(categoryTextElement);
         questionElement.appendChild(categoryElement);
 
-        // Create and append the <info> element
-        Element infoElement = doc.createElement("info");
-        infoElement.setAttribute("format", "html"); // Assuming format is always "html"
-        Element infoTextElement = doc.createElement("text");
-        infoTextElement.setTextContent(question.getInfoText() != null ? question.getInfoText() : "");
-        infoElement.appendChild(infoTextElement);
-        questionElement.appendChild(infoElement);
+        Element categoryTextElement = doc.createElement("text");
+        if (requiresCdata(question.getCategoryText())) {
+            categoryTextElement.appendChild(doc.createCDATASection(question.getCategoryText()));
+        } else {
+            categoryTextElement.appendChild(doc.createTextNode(question.getCategoryText()));
+        }
+        categoryElement.appendChild(categoryTextElement);
 
-        // Create and append the <idnumber> element, if present
+        if (question.getInfoText() != null && !question.getInfoText().isEmpty()) {
+            Element infoElement = doc.createElement("info");
+            infoElement.setAttribute("format", question.getInfoTextFormat().toString().toLowerCase());
+            Element infoTextElement = doc.createElement("text");
+            if (requiresCdata(question.getInfoText())) {
+                infoTextElement.appendChild(doc.createCDATASection(question.getInfoText()));
+            } else {
+                infoTextElement.appendChild(doc.createTextNode(question.getInfoText()));
+            }
+            infoElement.appendChild(infoTextElement);
+            questionElement.appendChild(infoElement);
+        }
+
         if (question.getIdNumber() != null && !question.getIdNumber().isEmpty()) {
             Element idNumberElement = doc.createElement("idnumber");
-            idNumberElement.setTextContent(question.getIdNumber());
+            idNumberElement.appendChild(doc.createTextNode(question.getIdNumber()));
             questionElement.appendChild(idNumberElement);
-        } else {
-            // Even if idNumber is null or empty, append an empty <idnumber> element as per the provided structure
-            questionElement.appendChild(doc.createElement("idnumber"));
         }
 
         return questionElement;

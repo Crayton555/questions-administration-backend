@@ -3,6 +3,7 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 
 import java.util.List;
 
@@ -14,7 +15,9 @@ public class ClozeQuestionDto {
     private String questionType;
     private String name;
     private String questionText;
+    private FormatType questionTextFormat;
     private String generalFeedback;
+    private FormatType generalFeedbackFormat;
     private double penalty;
     private boolean hidden;
     private String idNumber;

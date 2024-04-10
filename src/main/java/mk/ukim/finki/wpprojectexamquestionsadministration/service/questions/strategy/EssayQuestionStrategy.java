@@ -4,6 +4,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.ClozeQuestionDto;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.EssayQuestionDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.EssayQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
@@ -108,7 +109,9 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         question.setQuestionType("EssayQuestion");
         question.setName(getTextContentByTagName(questionElement, "name"));
         question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
+        question.setQuestionTextFormat(extractFormat(questionElement, "questiontext"));
         question.setGeneralFeedback(getTextContentByTagName(questionElement, "generalfeedback"));
+        question.setGeneralFeedbackFormat(extractFormat(questionElement, "generalfeedback"));
         question.setPenalty(parseDouble(getTextContentByTagName(questionElement, "penalty")));
         question.setHidden(parseBoolean(getTextContentByTagName(questionElement, "hidden")));
         question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
@@ -125,7 +128,9 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         question.setAttachmentsRequired(parseInt(getTextContentByTagName(questionElement, "attachmentsrequired")));
         question.setMaxBytes(parseLong(getTextContentByTagName(questionElement, "maxbytes")));
         question.setGraderInfo(getTextContentByTagName(questionElement, "graderinfo"));
+        question.setGraderInfoFormat(extractFormat(questionElement, "graderinfo"));
         question.setResponseTemplate(getTextContentByTagName(questionElement, "responsetemplate"));
+        question.setResponseTemplateFormat(extractFormat(questionElement, "responsetemplate"));
 
         Category defaultCategory = categoryRepository.findAll().get(0);
         question.setCategory(defaultCategory);
@@ -144,6 +149,29 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         }
 
         return Optional.of(questionRepository.save(question));
+    }
+
+    private FormatType extractFormat(Element questionElement, String elementName) {
+        NodeList nodeList = questionElement.getElementsByTagName(elementName);
+        if (nodeList.getLength() > 0) {
+            Element element = (Element) nodeList.item(0);
+            String format = element.getAttribute("format");
+            switch (format) {
+                case "html" -> {
+                    return FormatType.HTML;
+                }
+                case "moodle_auto_format" -> {
+                    return FormatType.MOODLE_AUTO_FORMAT;
+                }
+                case "plain_text" -> {
+                    return FormatType.PLAIN_TEXT;
+                }
+                case "markdown" -> {
+                    return FormatType.MARKDOWN;
+                }
+            }
+        }
+        return FormatType.HTML;
     }
 
     private List<String> extractFileTypesList(Element questionElement) {
@@ -206,56 +234,79 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
 
     @Override
     public Element toXmlElement(EssayQuestion question, Document doc) {
-        // Create the root element for the question
         Element questionElement = doc.createElement("question");
         questionElement.setAttribute("type", "essay");
 
-        // Add question name
         Element nameElement = doc.createElement("name");
         Element nameTextElement = doc.createElement("text");
         nameTextElement.appendChild(doc.createTextNode(question.getName()));
         nameElement.appendChild(nameTextElement);
         questionElement.appendChild(nameElement);
 
-        // Add question text
         Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", question.getResponseFormat());
-        Element questionTextTextElement = doc.createElement("text");
-        questionTextTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
-        questionTextElement.appendChild(questionTextTextElement);
+        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
+        Element questionTextContent = doc.createElement("text");
+        if (requiresCdata(question.getQuestionText())) {
+            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
+        } else {
+            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
+        }
+        questionTextElement.appendChild(questionTextContent);
         questionElement.appendChild(questionTextElement);
 
-        // Add general feedback
-        Element generalFeedbackElement = doc.createElement("generalfeedback");
-        Element generalFeedbackTextElement = doc.createElement("text");
-        generalFeedbackTextElement.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-        generalFeedbackElement.appendChild(generalFeedbackTextElement);
-        questionElement.appendChild(generalFeedbackElement);
-
-        // Optional: Add other fields like penalty, hidden, idNumber, defaultGrade, etc., similar to above.
-
-        // Add category
-        Element categoryElement = doc.createElement("category");
-        Element categoryTextElement = doc.createElement("text");
-        if (question.getCategory() != null) {
-            categoryTextElement.appendChild(doc.createTextNode(question.getCategory().getName()));
-        } else {
-            categoryTextElement.appendChild(doc.createTextNode("Default Category"));
-        }
-        categoryElement.appendChild(categoryTextElement);
-        questionElement.appendChild(categoryElement);
-
-        // Optionally add labels as tags
-        if (!question.getLabels().isEmpty()) {
-            for (Label label : question.getLabels()) {
-                Element tagElement = doc.createElement("tag");
-                tagElement.appendChild(doc.createTextNode(label.getName()));
-                questionElement.appendChild(tagElement);
+        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
+            Element generalFeedbackElement = doc.createElement("generalfeedback");
+            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
+            Element generalFeedbackContent = doc.createElement("text");
+            if (requiresCdata(question.getGeneralFeedback())) {
+                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
+            } else {
+                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
             }
+            generalFeedbackElement.appendChild(generalFeedbackContent);
+            questionElement.appendChild(generalFeedbackElement);
         }
 
-        // Optionally, add custom fields specific to EssayQuestions like responseTemplate, fileTypesList, etc.
+        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
+        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
+        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
+        if (question.getIdNumber() != null) {
+            addSimpleElement(questionElement, doc, "idnumber", question.getIdNumber());
+        }
+
+        addSimpleElement(questionElement, doc, "responseformat", question.getResponseFormat());
+        addSimpleElement(questionElement, doc, "responserequired", question.isResponseRequired() ? "1" : "0");
+        addSimpleElement(questionElement, doc, "responsefieldlines", String.valueOf(question.getResponseFieldLines()));
+        addSimpleElement(questionElement, doc, "attachments", String.valueOf(question.getAttachments()));
+        addSimpleElement(questionElement, doc, "attachmentsrequired", String.valueOf(question.getAttachmentsRequired()));
+        addSimpleElement(questionElement, doc, "maxbytes", String.valueOf(question.getMaxBytes()));
+
+        if (question.getGraderInfo() != null && !question.getGraderInfo().isEmpty()) {
+            Element graderInfoElement = doc.createElement("graderinfo");
+            graderInfoElement.setAttribute("format", question.getGraderInfoFormat().toString().toLowerCase());
+            Element graderInfoContent = doc.createElement("text");
+            graderInfoContent.appendChild(doc.createTextNode(question.getGraderInfo()));
+            graderInfoElement.appendChild(graderInfoContent);
+            questionElement.appendChild(graderInfoElement);
+        }
+
+        if (question.getResponseTemplate() != null && !question.getResponseTemplate().isEmpty()) {
+            Element responseTemplateElement = doc.createElement("responsetemplate");
+            responseTemplateElement.setAttribute("format", question.getResponseTemplateFormat().toString().toLowerCase());
+            Element responseTemplateContent = doc.createElement("text");
+            responseTemplateContent.appendChild(doc.createTextNode(question.getResponseTemplate()));
+            responseTemplateElement.appendChild(responseTemplateContent);
+            questionElement.appendChild(responseTemplateElement);
+        }
 
         return questionElement;
+    }
+
+    private void addSimpleElement(Element parent, Document doc, String tagName, String textContent) {
+        if (textContent != null && !textContent.isEmpty()) {
+            Element element = doc.createElement(tagName);
+            element.appendChild(doc.createTextNode(textContent));
+            parent.appendChild(element);
+        }
     }
 }

@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 
 import javax.persistence.*;
 import java.util.ArrayList;
@@ -24,9 +25,11 @@ public abstract class BaseQuestion {
 
     @Column(length = 100000)
     private String questionText;
-
+    @Enumerated(EnumType.STRING)
+    private FormatType questionTextFormat = FormatType.HTML;
     private String generalFeedback;
-
+    @Enumerated(EnumType.STRING)
+    private FormatType generalFeedbackFormat = FormatType.HTML;
     private double penalty;
 
     private boolean hidden = false;

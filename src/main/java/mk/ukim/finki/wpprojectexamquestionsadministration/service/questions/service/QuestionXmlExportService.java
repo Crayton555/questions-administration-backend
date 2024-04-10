@@ -35,7 +35,6 @@ public class QuestionXmlExportService {
         List<BaseQuestion> questions = questionRepository.findAll();
         System.out.println("Exporting " + questions.size() + " questions.");
         for (BaseQuestion question : questions) {
-            // Cast needed due to the wildcard usage in the strategies map
             @SuppressWarnings("unchecked") QuestionStrategy<BaseQuestion, ?> strategy = (QuestionStrategy<BaseQuestion, ?>) strategies.get(question.getClass());
             if (strategy != null) {
                 Element questionElement = strategy.toXmlElement(question, doc);

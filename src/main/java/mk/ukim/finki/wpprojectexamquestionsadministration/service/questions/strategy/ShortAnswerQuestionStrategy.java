@@ -4,6 +4,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.EssayQuestionDto;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.ShortAnswerQuestionDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.ShortAnswerQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
@@ -68,7 +69,7 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         question.setIdNumber(questionDto.getIdNumber());
         question.setDefaultGrade(questionDto.getDefaultGrade());
         question.setUseCase(questionDto.isUseCase());
-        question.setAnswer(new ShortAnswerQuestion.Answer(questionDto.getAnswer().getText(), questionDto.getAnswer().getFraction(), questionDto.getAnswer().getFeedback()));
+        question.setAnswer(new ShortAnswerQuestion.Answer(questionDto.getAnswer().getFraction(), questionDto.getAnswer().getAnswerFormat(), questionDto.getAnswer().getText(), questionDto.getAnswer().getFeedback(), questionDto.getAnswer().getFeedbackFormat()));
 
         Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
@@ -96,7 +97,9 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
     public Optional<ShortAnswerQuestion> saveFromXml(Element questionElement) {
         String name = getTextContentByTagName(questionElement, "text");
         String questionText = getTextContentByTagName(questionElement, "questiontext");
+        FormatType questionTextFormat = extractFormat(questionElement, "questiontext"); // Assuming extractFormat method is implemented
         String generalFeedback = getTextContentByTagName(questionElement, "generalfeedback");
+        FormatType generalFeedbackFormat = extractFormat(questionElement, "generalfeedback"); // Assuming extractFormat method is implemented
         String defaultGradeStr = getTextContentByTagName(questionElement, "defaultgrade");
         String penaltyStr = getTextContentByTagName(questionElement, "penalty");
         String idNumber = getTextContentByTagName(questionElement, "idnumber");
@@ -105,7 +108,9 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         ShortAnswerQuestion question = new ShortAnswerQuestion();
         question.setName(name);
         question.setQuestionText(questionText);
+        question.setQuestionTextFormat(questionTextFormat);
         question.setGeneralFeedback(generalFeedback);
+        question.setGeneralFeedbackFormat(generalFeedbackFormat);
         question.setDefaultGrade(Double.parseDouble(defaultGradeStr));
         question.setPenalty(Double.parseDouble(penaltyStr));
         question.setIdNumber(idNumber);
@@ -117,11 +122,10 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
             String fractionStr = answerElement.getAttribute("fraction");
             String answerText = getTextContentByTagName(answerElement, "text");
             String feedback = getTextContentByTagName(answerElement, "feedback");
+            FormatType answerFormat = extractFormat(answerElement, ""); // Assuming extractFormat method is implemented for answers
+            FormatType feedbackFormat = extractFormat(answerElement, "feedback"); // Assuming extractFormat method is implemented for feedback
 
-            ShortAnswerQuestion.Answer answer = new ShortAnswerQuestion.Answer();
-            answer.setText(answerText);
-            answer.setFraction(Double.parseDouble(fractionStr));
-            answer.setFeedback(feedback);
+            ShortAnswerQuestion.Answer answer = new ShortAnswerQuestion.Answer(Double.parseDouble(fractionStr), answerFormat, answerText, feedback, feedbackFormat);
 
             question.setAnswer(answer);
         }
@@ -147,6 +151,29 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         return Optional.of(questionRepository.save(question));
     }
 
+    private FormatType extractFormat(Element questionElement, String elementName) {
+        NodeList nodeList = questionElement.getElementsByTagName(elementName);
+        if (nodeList.getLength() > 0) {
+            Element element = (Element) nodeList.item(0);
+            String format = element.getAttribute("format");
+            switch (format) {
+                case "html" -> {
+                    return FormatType.HTML;
+                }
+                case "moodle_auto_format" -> {
+                    return FormatType.MOODLE_AUTO_FORMAT;
+                }
+                case "plain_text" -> {
+                    return FormatType.PLAIN_TEXT;
+                }
+                case "markdown" -> {
+                    return FormatType.MARKDOWN;
+                }
+            }
+        }
+        return FormatType.HTML;
+    }
+
     private String getTextContentByTagName(Element element, String tagName) {
         NodeList elements = element.getElementsByTagName(tagName);
         if (elements != null && elements.getLength() > 0) {
@@ -170,70 +197,68 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         Element questionElement = doc.createElement("question");
         questionElement.setAttribute("type", "shortanswer");
 
-        // Question name
         Element nameElement = doc.createElement("name");
         Element nameTextElement = doc.createElement("text");
         nameTextElement.appendChild(doc.createTextNode(question.getName()));
         nameElement.appendChild(nameTextElement);
         questionElement.appendChild(nameElement);
 
-        // Question text
         Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", "html");
-        Element questionTextTextElement = doc.createElement("text");
-        // Wrap question text in CDATA
-        questionTextTextElement.appendChild(doc.createCDATASection(question.getQuestionText()));
-        questionTextElement.appendChild(questionTextTextElement);
+        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
+        Element questionTextContent = doc.createElement("text");
+        if (requiresCdata(question.getQuestionText())) {
+            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
+        } else {
+            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
+        }
+        questionTextElement.appendChild(questionTextContent);
         questionElement.appendChild(questionTextElement);
 
-        // General feedback
-        Element generalFeedbackElement = doc.createElement("generalfeedback");
-        Element generalFeedbackTextElement = doc.createElement("text");
-        // Wrap general feedback in CDATA
-        generalFeedbackTextElement.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-        generalFeedbackElement.appendChild(generalFeedbackTextElement);
-        questionElement.appendChild(generalFeedbackElement);
+        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
+            Element generalFeedbackElement = doc.createElement("generalfeedback");
+            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
+            Element generalFeedbackContent = doc.createElement("text");
+            if (requiresCdata(question.getGeneralFeedback())) {
+                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
+            } else {
+                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
+            }
+            generalFeedbackElement.appendChild(generalFeedbackContent);
+            questionElement.appendChild(generalFeedbackElement);
+        }
 
-        // Default grade
-        Element defaultGradeElement = doc.createElement("defaultgrade");
-        defaultGradeElement.appendChild(doc.createTextNode(String.valueOf(question.getDefaultGrade())));
-        questionElement.appendChild(defaultGradeElement);
+        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
+        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
+        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
+        addSimpleElement(questionElement, doc, "usecase", question.isUseCase() ? "1" : "0");
 
-        // Penalty
-        Element penaltyElement = doc.createElement("penalty");
-        penaltyElement.appendChild(doc.createTextNode(String.valueOf(question.getPenalty())));
-        questionElement.appendChild(penaltyElement);
-
-        // Hidden
-        Element hiddenElement = doc.createElement("hidden");
-        hiddenElement.appendChild(doc.createTextNode(question.isHidden() ? "1" : "0"));
-        questionElement.appendChild(hiddenElement);
-
-        // Use case
-        Element useCaseElement = doc.createElement("usecase");
-        useCaseElement.appendChild(doc.createTextNode(question.isUseCase() ? "1" : "0"));
-        questionElement.appendChild(useCaseElement);
-
-        // Answer
         if (question.getAnswer() != null) {
             Element answerElement = doc.createElement("answer");
             answerElement.setAttribute("fraction", String.valueOf(question.getAnswer().getFraction()));
-            answerElement.setAttribute("format", "moodle_auto_format");
-            Element answerTextElement = doc.createElement("text");
-            answerTextElement.appendChild(doc.createTextNode(question.getAnswer().getText()));
-            answerElement.appendChild(answerTextElement);
+            answerElement.setAttribute("format", question.getAnswer().getAnswerFormat().toString().toLowerCase());
 
-            // Feedback for the answer
-            Element feedbackElement = doc.createElement("feedback");
-            Element feedbackTextElement = doc.createElement("text");
-            // Wrap feedback in CDATA
-            feedbackTextElement.appendChild(doc.createCDATASection(question.getAnswer().getFeedback()));
-            feedbackElement.appendChild(feedbackTextElement);
-            answerElement.appendChild(feedbackElement);
+            Element textElement = doc.createElement("text");
+            textElement.appendChild(doc.createTextNode(question.getAnswer().getText()));
+            answerElement.appendChild(textElement);
+
+            if (question.getAnswer().getFeedback() != null && !question.getAnswer().getFeedback().isEmpty()) {
+                Element feedbackElement = doc.createElement("feedback");
+                feedbackElement.setAttribute("format", question.getAnswer().getFeedbackFormat().toString().toLowerCase());
+                Element feedbackTextElement = doc.createElement("text");
+                feedbackTextElement.appendChild(doc.createTextNode(question.getAnswer().getFeedback()));
+                feedbackElement.appendChild(feedbackTextElement);
+                answerElement.appendChild(feedbackElement);
+            }
 
             questionElement.appendChild(answerElement);
         }
 
         return questionElement;
+    }
+
+    private void addSimpleElement(Element parent, Document doc, String tagName, String textContent) {
+        Element element = doc.createElement(tagName);
+        element.appendChild(doc.createTextNode(textContent));
+        parent.appendChild(element);
     }
 }

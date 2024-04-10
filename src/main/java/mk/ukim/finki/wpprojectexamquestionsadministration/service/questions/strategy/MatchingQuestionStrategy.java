@@ -4,6 +4,7 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.EssayQuestionDto;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.MatchingQuestionDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.MatchingQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
@@ -71,7 +72,13 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
         question.setShowNumCorrect(questionDto.isShowNumCorrect());
-        question.setSubQuestions(questionDto.getSubQuestions().stream().map(dto -> new MatchingQuestion.SubQuestion(dto.getText(), dto.getAnswer())).collect(Collectors.toList()));
+        question.setSubQuestions(questionDto.getSubQuestions().stream().map(dto -> new MatchingQuestion.SubQuestion(dto.getSubQuestionFormat(), dto.getText(), dto.getAnswer())).collect(Collectors.toList()));
+
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+        question.setCorrectFeedbackFormat(questionDto.getCorrectFeedbackFormat());
+        question.setPartiallyCorrectFeedbackFormat(questionDto.getPartiallyCorrectFeedbackFormat());
+        question.setIncorrectFeedbackFormat(questionDto.getIncorrectFeedbackFormat());
 
         Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
@@ -102,7 +109,9 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         question.setQuestionType("MatchingQuestion");
         question.setName(getTextContentByTagName(questionElement, "name"));
         question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
+        question.setQuestionTextFormat(extractFormat(questionElement, "questiontext"));
         question.setGeneralFeedback(getTextContentByTagName(questionElement, "generalfeedback"));
+        question.setGeneralFeedbackFormat(extractFormat(questionElement, "generalfeedback"));
         question.setPenalty(parseDouble(getTextContentByTagName(questionElement, "penalty")));
         question.setHidden(parseBoolean(getTextContentByTagName(questionElement, "hidden")));
         question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
@@ -110,8 +119,11 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         question.setDefaultGrade(parseDouble(getTextContentByTagName(questionElement, "defaultgrade")));
         question.setShuffleAnswers(parseBoolean(getTextContentByTagName(questionElement, "shuffleanswers")));
         question.setCorrectFeedback(getTextContentByTagName(questionElement, "correctfeedback"));
+        question.setCorrectFeedbackFormat(extractFormat(questionElement, "correctfeedback"));
         question.setPartiallyCorrectFeedback(getTextContentByTagName(questionElement, "partiallycorrectfeedback"));
+        question.setPartiallyCorrectFeedbackFormat(extractFormat(questionElement, "partiallycorrectfeedback"));
         question.setIncorrectFeedback(getTextContentByTagName(questionElement, "incorrectfeedback"));
+        question.setIncorrectFeedbackFormat(extractFormat(questionElement, "incorrectfeedback"));
         question.setShowNumCorrect(parseBoolean(getTextContentByTagName(questionElement, "shownumcorrect")));
 
         NodeList subQuestionList = questionElement.getElementsByTagName("subquestion");
@@ -122,7 +134,8 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
                 Element subQuestionElement = (Element) subQuestionNode;
                 String text = getTextContentByTagName(subQuestionElement, "text");
                 String answer = getTextContentByTagName(subQuestionElement, "answer");
-                subQuestions.add(new MatchingQuestion.SubQuestion(text, answer));
+                FormatType subQuestionFormat = extractFormat(subQuestionElement, "");
+                subQuestions.add(new MatchingQuestion.SubQuestion(subQuestionFormat, text, answer));
             }
         }
         question.setSubQuestions(subQuestions);
@@ -144,6 +157,24 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         }
 
         return Optional.of(questionRepository.save(question));
+    }
+
+    private FormatType extractFormat(Element element, String elementName) {
+        Element targetElement = element;
+        if (!elementName.isEmpty()) {
+            NodeList nodeList = element.getElementsByTagName(elementName);
+            if (nodeList.getLength() > 0) {
+                targetElement = (Element) nodeList.item(0);
+            }
+        }
+        String format = targetElement.getAttribute("format");
+        return switch (format) {
+            case "html" -> FormatType.HTML;
+            case "moodle_auto_format" -> FormatType.MOODLE_AUTO_FORMAT;
+            case "plain_text" -> FormatType.PLAIN_TEXT;
+            case "markdown" -> FormatType.MARKDOWN;
+            default -> FormatType.HTML;
+        };
     }
 
     private double parseDouble(String value) {
@@ -178,86 +209,71 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
 
     @Override
     public Element toXmlElement(MatchingQuestion question, Document doc) {
-        // Create the root question element
         Element questionElement = doc.createElement("question");
         questionElement.setAttribute("type", "matching");
 
-        // Name
-        Element nameElement = createTextElement(doc, "name", question.getName());
+        Element nameElement = doc.createElement("name");
+        Element nameTextElement = doc.createElement("text");
+        nameTextElement.appendChild(doc.createTextNode(question.getName()));
+        nameElement.appendChild(nameTextElement);
         questionElement.appendChild(nameElement);
 
-        // Question text
-        Element questionTextElement = createFormattedTextElement(doc, "questiontext", "html", question.getQuestionText());
+        Element questionTextElement = doc.createElement("questiontext");
+        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
+        Element questionTextContent = doc.createElement("text");
+        if (requiresCdata(question.getQuestionText())) {
+            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
+        } else {
+            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
+        }
+        questionTextElement.appendChild(questionTextContent);
         questionElement.appendChild(questionTextElement);
 
-        // General feedback
-        Element generalFeedbackElement = createFormattedTextElement(doc, "generalfeedback", "html", question.getGeneralFeedback());
-        questionElement.appendChild(generalFeedbackElement);
-
-        // Default grade
-        questionElement.appendChild(createTextElement(doc, "defaultgrade", String.valueOf(question.getDefaultGrade())));
-
-        // Penalty
-        questionElement.appendChild(createTextElement(doc, "penalty", String.valueOf(question.getPenalty())));
-
-        // Hidden
-        questionElement.appendChild(createTextElement(doc, "hidden", question.isHidden() ? "1" : "0"));
-
-        // Shuffle answers
-        questionElement.appendChild(createTextElement(doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false"));
-
-        // Correct feedback
-        Element correctFeedbackElement = createFormattedTextElement(doc, "correctfeedback", "html", question.getCorrectFeedback());
-        questionElement.appendChild(correctFeedbackElement);
-
-        // Partially correct feedback
-        Element partiallyCorrectFeedbackElement = createFormattedTextElement(doc, "partiallycorrectfeedback", "html", question.getPartiallyCorrectFeedback());
-        questionElement.appendChild(partiallyCorrectFeedbackElement);
-
-        // Incorrect feedback
-        Element incorrectFeedbackElement = createFormattedTextElement(doc, "incorrectfeedback", "html", question.getIncorrectFeedback());
-        questionElement.appendChild(incorrectFeedbackElement);
-
-        // Show num correct
-        if (question.isShowNumCorrect()) {
-            questionElement.appendChild(createTextElement(doc, "shownumcorrect", ""));
+        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
+            Element generalFeedbackElement = doc.createElement("generalfeedback");
+            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
+            Element generalFeedbackContent = doc.createElement("text");
+            if (requiresCdata(question.getGeneralFeedback())) {
+                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
+            } else {
+                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
+            }
+            generalFeedbackElement.appendChild(generalFeedbackContent);
+            questionElement.appendChild(generalFeedbackElement);
         }
 
-        // Subquestions
+        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
+        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
+        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
+        addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
+
         for (MatchingQuestion.SubQuestion subQuestion : question.getSubQuestions()) {
             Element subQuestionElement = doc.createElement("subquestion");
-            subQuestionElement.setAttribute("format", "html");
-            subQuestionElement.appendChild(createCDATAElement(doc, "text", subQuestion.getText()));
+            subQuestionElement.setAttribute("format", subQuestion.getSubQuestionFormat().toString().toLowerCase());
+
+            Element subQuestionTextElement = doc.createElement("text");
+            if (requiresCdata(subQuestion.getText())) {
+                subQuestionTextElement.appendChild(doc.createCDATASection(subQuestion.getText()));
+            } else {
+                subQuestionTextElement.appendChild(doc.createTextNode(subQuestion.getText()));
+            }
+            subQuestionElement.appendChild(subQuestionTextElement);
 
             Element answerElement = doc.createElement("answer");
-            answerElement.appendChild(createCDATAElement(doc, "text", subQuestion.getAnswer()));
-
+            Element answerTextElement = doc.createElement("text");
+            answerTextElement.appendChild(doc.createTextNode(subQuestion.getAnswer()));
+            answerElement.appendChild(answerTextElement);
             subQuestionElement.appendChild(answerElement);
+
             questionElement.appendChild(subQuestionElement);
         }
 
         return questionElement;
     }
 
-    private Element createTextElement(Document doc, String tagName, String text) {
+    private void addSimpleElement(Element parent, Document doc, String tagName, String textContent) {
         Element element = doc.createElement(tagName);
-        element.appendChild(doc.createTextNode(text));
-        return element;
-    }
-
-    private Element createFormattedTextElement(Document doc, String tagName, String format, String text) {
-        Element element = doc.createElement(tagName);
-        element.setAttribute("format", format);
-        Element textElement = doc.createElement("text");
-        textElement.appendChild(doc.createCDATASection(text));
-        element.appendChild(textElement);
-        return element;
-    }
-
-    private Element createCDATAElement(Document doc, String tagName, String cdataText) {
-        Element textElement = doc.createElement(tagName);
-        CDATASection cdataSection = doc.createCDATASection(cdataText);
-        textElement.appendChild(cdataSection);
-        return textElement;
+        element.appendChild(doc.createTextNode(textContent));
+        parent.appendChild(element);
     }
 }

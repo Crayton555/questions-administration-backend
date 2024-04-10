@@ -3,6 +3,7 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.str
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions.ClozeQuestionDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.ClozeQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
@@ -66,6 +67,9 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
         question.setHidden(questionDto.isHidden());
         question.setIdNumber(questionDto.getIdNumber());
 
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+
         Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
@@ -92,7 +96,9 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
     public Optional<ClozeQuestion> saveFromXml(Element questionElement) {
         String name = getTextContentByTagName(questionElement, "name");
         String questionText = getTextContentByTagName(questionElement, "questiontext");
+        FormatType questionTextFormat = extractFormat(questionElement, "questiontext");
         String generalFeedback = getTextContentByTagName(questionElement, "generalfeedback");
+        FormatType generalFeedbackFormat = extractFormat(questionElement, "generalfeedback");
         double penalty = Double.parseDouble(questionElement.getElementsByTagName("penalty").item(0).getTextContent());
         boolean hidden = questionElement.getElementsByTagName("hidden").item(0).getTextContent().equals("1");
         String idNumber = getTextContentByTagName(questionElement, "idnumber");
@@ -101,7 +107,9 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
         question.setQuestionType("ClozeQuestion");
         question.setName(name);
         question.setQuestionText(questionText);
+        question.setQuestionTextFormat(questionTextFormat);
         question.setGeneralFeedback(generalFeedback);
+        question.setGeneralFeedbackFormat(generalFeedbackFormat);
         question.setPenalty(penalty);
         question.setHidden(hidden);
         question.setIdNumber(idNumber);
@@ -125,6 +133,29 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
         return Optional.of(questionRepository.save(question));
     }
 
+    private FormatType extractFormat(Element questionElement, String elementName) {
+        NodeList nodeList = questionElement.getElementsByTagName(elementName);
+        if (nodeList.getLength() > 0) {
+            Element element = (Element) nodeList.item(0);
+            String format = element.getAttribute("format");
+            switch (format) {
+                case "html" -> {
+                    return FormatType.HTML;
+                }
+                case "moodle_auto_format" -> {
+                    return FormatType.MOODLE_AUTO_FORMAT;
+                }
+                case "plain_text" -> {
+                    return FormatType.PLAIN_TEXT;
+                }
+                case "markdown" -> {
+                    return FormatType.MARKDOWN;
+                }
+            }
+        }
+        return FormatType.HTML;
+    }
+
     private String getTextContentByTagName(Element element, String tagName) {
         NodeList elements = element.getElementsByTagName(tagName);
         if (elements != null && elements.getLength() > 0) {
@@ -145,29 +176,52 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
 
     @Override
     public Element toXmlElement(ClozeQuestion question, Document doc) {
-        // Create the root element for the question
         Element questionElement = doc.createElement("question");
         questionElement.setAttribute("type", "cloze");
 
-        // Add the category element
-        Element categoryElement = doc.createElement("category");
-        questionElement.appendChild(categoryElement);
+        Element nameElement = doc.createElement("name");
+        Element nameTextElement = doc.createElement("text");
+        nameTextElement.appendChild(doc.createTextNode(question.getName()));
+        nameElement.appendChild(nameTextElement);
+        questionElement.appendChild(nameElement);
 
-        // Add the text element to category
-        Element categoryTextElement = doc.createElement("text");
-        categoryTextElement.appendChild(doc.createTextNode("$course$/top/Default for ОС-20//21/Прашања од предавања (Сашо Граматиков)")); // Example path, replace as needed
-        categoryElement.appendChild(categoryTextElement);
+        Element questiontextElement = doc.createElement("questiontext");
+        questiontextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
+        Element questionTextElement = doc.createElement("text");
+        if (requiresCdata(question.getQuestionText())) {
+            questionTextElement.appendChild(doc.createCDATASection(question.getQuestionText()));
+        } else {
+            questionTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
+        }
+        questiontextElement.appendChild(questionTextElement);
+        questionElement.appendChild(questiontextElement);
 
-        // Add the question text (info) element
-        Element infoElement = doc.createElement("info");
-        infoElement.setAttribute("format", "html");
-        Element infoTextElement = doc.createElement("text");
-        infoTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
-        infoElement.appendChild(infoTextElement);
-        questionElement.appendChild(infoElement);
+        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
+            Element generalFeedbackElement = doc.createElement("generalfeedback");
+            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
+            Element feedbackTextElement = doc.createElement("text");
+            if (requiresCdata(question.getGeneralFeedback())) {
+                feedbackTextElement.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
+            } else {
+                feedbackTextElement.appendChild(doc.createTextNode(question.getGeneralFeedback()));
+            }
+            generalFeedbackElement.appendChild(feedbackTextElement);
+            questionElement.appendChild(generalFeedbackElement);
+        }
 
-        // Optionally add other details like idnumber, general feedback, etc. if needed
+        Element penaltyElement = doc.createElement("penalty");
+        penaltyElement.appendChild(doc.createTextNode(String.valueOf(question.getPenalty())));
+        questionElement.appendChild(penaltyElement);
 
+        Element hiddenElement = doc.createElement("hidden");
+        hiddenElement.appendChild(doc.createTextNode(question.isHidden() ? "1" : "0"));
+        questionElement.appendChild(hiddenElement);
+
+        if (question.getIdNumber() != null && !question.getIdNumber().isEmpty()) {
+            Element idNumberElement = doc.createElement("idnumber");
+            idNumberElement.appendChild(doc.createTextNode(question.getIdNumber()));
+            questionElement.appendChild(idNumberElement);
+        }
         return questionElement;
     }
 }

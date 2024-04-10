@@ -3,6 +3,7 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.questions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 
 import java.util.List;
 
@@ -14,7 +15,9 @@ public class MultiChoiceQuestionDto {
     private String questionType;
     private String name;
     private String questionText;
+    private FormatType questionTextFormat;
     private String generalFeedback;
+    private FormatType generalFeedbackFormat;
     private double penalty;
     private boolean hidden;
     private String idNumber;
@@ -24,8 +27,11 @@ public class MultiChoiceQuestionDto {
     private String answerNumbering;
     private boolean showStandardInstruction;
     private String correctFeedback;
+    private FormatType correctFeedbackFormat;
     private String partiallyCorrectFeedback;
+    private FormatType partiallyCorrectFeedbackFormat;
     private String incorrectFeedback;
+    private FormatType incorrectFeedbackFormat;
     private List<AnswerDto> answerOptions;
     private Long categoryId;
     private List<Long> labelIds;
@@ -35,7 +41,9 @@ public class MultiChoiceQuestionDto {
     @AllArgsConstructor
     public static class AnswerDto {
         private double fraction;
+        private FormatType answerFormat;
         private String text;
         private String feedback;
+        private FormatType feedbackFormat;
     }
 }

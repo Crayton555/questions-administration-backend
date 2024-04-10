@@ -7,7 +7,6 @@ import org.w3c.dom.Element;
 import java.util.Optional;
 
 public interface QuestionStrategy<T extends BaseQuestion, D> {
-
     Optional<T> save(D questionDto);
 
     Optional<T> edit(Long id, D questionDto);
@@ -15,9 +14,21 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
     void deleteById(Long id);
 
     Optional<T> findById(Long id);
+
     Class<T> getQuestionType();
+
     Class<D> getQuestionDtoType();
+
     boolean isResponsibleFor(String type);
+
     public Optional<T> saveFromXml(Element questionElement);
+
+
     Element toXmlElement(T question, Document doc);
+
+    default boolean requiresCdata(String text) {
+        boolean needsCdata = text != null && (text.contains("<") || text.contains(">") || text.contains("&") || text.contains("\"") || text.contains("'"));
+        System.out.println("Text requires CDATA: " + needsCdata + " for text: " + text);
+        return needsCdata;
+    }
 }
