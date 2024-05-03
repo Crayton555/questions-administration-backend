@@ -69,9 +69,23 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         question.setIdNumber(questionDto.getIdNumber());
         question.setDefaultGrade(questionDto.getDefaultGrade());
         question.setUseCase(questionDto.isUseCase());
-        question.setAnswer(new ShortAnswerQuestion.Answer(questionDto.getAnswer().getFraction(), questionDto.getAnswer().getAnswerFormat(), questionDto.getAnswer().getText(), questionDto.getAnswer().getFeedback(), questionDto.getAnswer().getFeedbackFormat()));
 
-        Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
+        if (questionDto.getAnswer() != null) {
+            ShortAnswerQuestion.Answer answer = new ShortAnswerQuestion.Answer(
+                    questionDto.getAnswer().getFraction(),
+                    questionDto.getAnswer().getAnswerFormat(),
+                    questionDto.getAnswer().getText(),
+                    questionDto.getAnswer().getFeedback(),
+                    questionDto.getAnswer().getFeedbackFormat()
+            );
+            question.setAnswer(answer);
+        }
+
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+
+        Category category = categoryRepository.findById(questionDto.getCategoryId())
+                .orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
@@ -95,25 +109,15 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
 
     @Override
     public Optional<ShortAnswerQuestion> saveFromXml(Element questionElement) {
-        String name = getTextContentByTagName(questionElement, "text");
-        String questionText = getTextContentByTagName(questionElement, "questiontext");
-        FormatType questionTextFormat = extractFormat(questionElement, "questiontext"); // Assuming extractFormat method is implemented
-        String generalFeedback = getTextContentByTagName(questionElement, "generalfeedback");
-        FormatType generalFeedbackFormat = extractFormat(questionElement, "generalfeedback"); // Assuming extractFormat method is implemented
+        ShortAnswerQuestion question = new ShortAnswerQuestion();
+        question.setQuestionType("ShortAnswerQuestion");
+
+        importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
+
         String defaultGradeStr = getTextContentByTagName(questionElement, "defaultgrade");
-        String penaltyStr = getTextContentByTagName(questionElement, "penalty");
-        String idNumber = getTextContentByTagName(questionElement, "idnumber");
         String useCaseStr = getTextContentByTagName(questionElement, "usecase");
 
-        ShortAnswerQuestion question = new ShortAnswerQuestion();
-        question.setName(name);
-        question.setQuestionText(questionText);
-        question.setQuestionTextFormat(questionTextFormat);
-        question.setGeneralFeedback(generalFeedback);
-        question.setGeneralFeedbackFormat(generalFeedbackFormat);
         question.setDefaultGrade(Double.parseDouble(defaultGradeStr));
-        question.setPenalty(Double.parseDouble(penaltyStr));
-        question.setIdNumber(idNumber);
         question.setUseCase("1".equals(useCaseStr));
 
         NodeList answerList = questionElement.getElementsByTagName("answer");
@@ -122,15 +126,13 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
             String fractionStr = answerElement.getAttribute("fraction");
             String answerText = getTextContentByTagName(answerElement, "text");
             String feedback = getTextContentByTagName(answerElement, "feedback");
-            FormatType answerFormat = extractFormat(answerElement, ""); // Assuming extractFormat method is implemented for answers
-            FormatType feedbackFormat = extractFormat(answerElement, "feedback"); // Assuming extractFormat method is implemented for feedback
+            FormatType answerFormat = extractFormat(answerElement, "");
+            FormatType feedbackFormat = extractFormat(answerElement, "feedback");
 
             ShortAnswerQuestion.Answer answer = new ShortAnswerQuestion.Answer(Double.parseDouble(fractionStr), answerFormat, answerText, feedback, feedbackFormat);
 
             question.setAnswer(answer);
         }
-
-        question.setQuestionType("ShortAnswerQuestion");
 
         Category defaultCategory = categoryRepository.findAll().get(0);
         question.setCategory(defaultCategory);
@@ -151,85 +153,11 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
         return Optional.of(questionRepository.save(question));
     }
 
-    private FormatType extractFormat(Element questionElement, String elementName) {
-        NodeList nodeList = questionElement.getElementsByTagName(elementName);
-        if (nodeList.getLength() > 0) {
-            Element element = (Element) nodeList.item(0);
-            String format = element.getAttribute("format");
-            switch (format) {
-                case "html" -> {
-                    return FormatType.HTML;
-                }
-                case "moodle_auto_format" -> {
-                    return FormatType.MOODLE_AUTO_FORMAT;
-                }
-                case "plain_text" -> {
-                    return FormatType.PLAIN_TEXT;
-                }
-                case "markdown" -> {
-                    return FormatType.MARKDOWN;
-                }
-            }
-        }
-        return FormatType.HTML;
-    }
-
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
     @Override
     public Element toXmlElement(ShortAnswerQuestion question, Document doc) {
-        Element questionElement = doc.createElement("question");
+        Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "shortanswer");
 
-        Element nameElement = doc.createElement("name");
-        Element nameTextElement = doc.createElement("text");
-        nameTextElement.appendChild(doc.createTextNode(question.getName()));
-        nameElement.appendChild(nameTextElement);
-        questionElement.appendChild(nameElement);
-
-        Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
-        Element questionTextContent = doc.createElement("text");
-        if (requiresCdata(question.getQuestionText())) {
-            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
-        } else {
-            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
-        }
-        questionTextElement.appendChild(questionTextContent);
-        questionElement.appendChild(questionTextElement);
-
-        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element generalFeedbackContent = doc.createElement("text");
-            if (requiresCdata(question.getGeneralFeedback())) {
-                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-            } else {
-                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-            }
-            generalFeedbackElement.appendChild(generalFeedbackContent);
-            questionElement.appendChild(generalFeedbackElement);
-        }
-
-        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
-        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
-        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
         addSimpleElement(questionElement, doc, "usecase", question.isUseCase() ? "1" : "0");
 
         if (question.getAnswer() != null) {

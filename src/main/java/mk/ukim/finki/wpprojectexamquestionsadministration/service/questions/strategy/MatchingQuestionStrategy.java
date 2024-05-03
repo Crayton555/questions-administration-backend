@@ -72,7 +72,11 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
         question.setShowNumCorrect(questionDto.isShowNumCorrect());
-        question.setSubQuestions(questionDto.getSubQuestions().stream().map(dto -> new MatchingQuestion.SubQuestion(dto.getSubQuestionFormat(), dto.getText(), dto.getAnswer())).collect(Collectors.toList()));
+
+        if (questionDto.getSubQuestions() != null) {
+            List<MatchingQuestion.SubQuestion> subQuestions = questionDto.getSubQuestions().stream().map(dto -> new MatchingQuestion.SubQuestion(dto.getSubQuestionFormat(), dto.getText(), dto.getAnswer())).collect(Collectors.toList());
+            question.setSubQuestions(subQuestions);
+        }
 
         question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
         question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
@@ -105,16 +109,9 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
     @Override
     public Optional<MatchingQuestion> saveFromXml(Element questionElement) {
         MatchingQuestion question = new MatchingQuestion();
-
         question.setQuestionType("MatchingQuestion");
-        question.setName(getTextContentByTagName(questionElement, "name"));
-        question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
-        question.setQuestionTextFormat(extractFormat(questionElement, "questiontext"));
-        question.setGeneralFeedback(getTextContentByTagName(questionElement, "generalfeedback"));
-        question.setGeneralFeedbackFormat(extractFormat(questionElement, "generalfeedback"));
-        question.setPenalty(parseDouble(getTextContentByTagName(questionElement, "penalty")));
-        question.setHidden(parseBoolean(getTextContentByTagName(questionElement, "hidden")));
-        question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
+
+        importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
 
         question.setDefaultGrade(parseDouble(getTextContentByTagName(questionElement, "defaultgrade")));
         question.setShuffleAnswers(parseBoolean(getTextContentByTagName(questionElement, "shuffleanswers")));
@@ -159,92 +156,12 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         return Optional.of(questionRepository.save(question));
     }
 
-    private FormatType extractFormat(Element element, String elementName) {
-        Element targetElement = element;
-        if (!elementName.isEmpty()) {
-            NodeList nodeList = element.getElementsByTagName(elementName);
-            if (nodeList.getLength() > 0) {
-                targetElement = (Element) nodeList.item(0);
-            }
-        }
-        String format = targetElement.getAttribute("format");
-        return switch (format) {
-            case "html" -> FormatType.HTML;
-            case "moodle_auto_format" -> FormatType.MOODLE_AUTO_FORMAT;
-            case "plain_text" -> FormatType.PLAIN_TEXT;
-            case "markdown" -> FormatType.MARKDOWN;
-            default -> FormatType.HTML;
-        };
-    }
-
-    private double parseDouble(String value) {
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            return 0.0;
-        }
-    }
-
-    private boolean parseBoolean(String value) {
-        return "true".equalsIgnoreCase(value) || "1".equals(value);
-    }
-
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
     @Override
     public Element toXmlElement(MatchingQuestion question, Document doc) {
-        Element questionElement = doc.createElement("question");
+        Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "matching");
 
-        Element nameElement = doc.createElement("name");
-        Element nameTextElement = doc.createElement("text");
-        nameTextElement.appendChild(doc.createTextNode(question.getName()));
-        nameElement.appendChild(nameTextElement);
-        questionElement.appendChild(nameElement);
-
-        Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
-        Element questionTextContent = doc.createElement("text");
-        if (requiresCdata(question.getQuestionText())) {
-            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
-        } else {
-            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
-        }
-        questionTextElement.appendChild(questionTextContent);
-        questionElement.appendChild(questionTextElement);
-
-        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element generalFeedbackContent = doc.createElement("text");
-            if (requiresCdata(question.getGeneralFeedback())) {
-                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-            } else {
-                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-            }
-            generalFeedbackElement.appendChild(generalFeedbackContent);
-            questionElement.appendChild(generalFeedbackElement);
-        }
-
-        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
-        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
-        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
+//        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
         addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
 
         for (MatchingQuestion.SubQuestion subQuestion : question.getSubQuestions()) {

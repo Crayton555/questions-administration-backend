@@ -80,6 +80,11 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         question.setGraderInfo(questionDto.getGraderInfo());
         question.setResponseTemplate(questionDto.getResponseTemplate());
 
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+        question.setGraderInfoFormat(questionDto.getGraderInfoFormat());
+        question.setResponseTemplateFormat(questionDto.getResponseTemplateFormat());
+
         Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
 
@@ -105,16 +110,9 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
     @Override
     public Optional<EssayQuestion> saveFromXml(Element questionElement) {
         EssayQuestion question = new EssayQuestion();
-
         question.setQuestionType("EssayQuestion");
-        question.setName(getTextContentByTagName(questionElement, "name"));
-        question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
-        question.setQuestionTextFormat(extractFormat(questionElement, "questiontext"));
-        question.setGeneralFeedback(getTextContentByTagName(questionElement, "generalfeedback"));
-        question.setGeneralFeedbackFormat(extractFormat(questionElement, "generalfeedback"));
-        question.setPenalty(parseDouble(getTextContentByTagName(questionElement, "penalty")));
-        question.setHidden(parseBoolean(getTextContentByTagName(questionElement, "hidden")));
-        question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
+
+        importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
 
         List<String> fileTypesList = extractFileTypesList(questionElement);
         question.setFileTypesList(fileTypesList);
@@ -151,29 +149,6 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         return Optional.of(questionRepository.save(question));
     }
 
-    private FormatType extractFormat(Element questionElement, String elementName) {
-        NodeList nodeList = questionElement.getElementsByTagName(elementName);
-        if (nodeList.getLength() > 0) {
-            Element element = (Element) nodeList.item(0);
-            String format = element.getAttribute("format");
-            switch (format) {
-                case "html" -> {
-                    return FormatType.HTML;
-                }
-                case "moodle_auto_format" -> {
-                    return FormatType.MOODLE_AUTO_FORMAT;
-                }
-                case "plain_text" -> {
-                    return FormatType.PLAIN_TEXT;
-                }
-                case "markdown" -> {
-                    return FormatType.MARKDOWN;
-                }
-            }
-        }
-        return FormatType.HTML;
-    }
-
     private List<String> extractFileTypesList(Element questionElement) {
         NodeList fileTypeNodes = questionElement.getElementsByTagName("filetype");
         List<String> fileTypes = new ArrayList<>();
@@ -186,93 +161,10 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         return fileTypes;
     }
 
-    private double parseDouble(String text) {
-        try {
-            return Double.parseDouble(text);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private boolean parseBoolean(String text) {
-        return "1".equals(text);
-    }
-
-    private int parseInt(String text) {
-        try {
-            return Integer.parseInt(text);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private long parseLong(String text) {
-        try {
-            return Long.parseLong(text);
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
     @Override
     public Element toXmlElement(EssayQuestion question, Document doc) {
-        Element questionElement = doc.createElement("question");
+        Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "essay");
-
-        Element nameElement = doc.createElement("name");
-        Element nameTextElement = doc.createElement("text");
-        nameTextElement.appendChild(doc.createTextNode(question.getName()));
-        nameElement.appendChild(nameTextElement);
-        questionElement.appendChild(nameElement);
-
-        Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
-        Element questionTextContent = doc.createElement("text");
-        if (requiresCdata(question.getQuestionText())) {
-            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
-        } else {
-            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
-        }
-        questionTextElement.appendChild(questionTextContent);
-        questionElement.appendChild(questionTextElement);
-
-        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element generalFeedbackContent = doc.createElement("text");
-            if (requiresCdata(question.getGeneralFeedback())) {
-                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-            } else {
-                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-            }
-            generalFeedbackElement.appendChild(generalFeedbackContent);
-            questionElement.appendChild(generalFeedbackElement);
-        }
-
-        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
-        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
-        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
-        if (question.getIdNumber() != null) {
-            addSimpleElement(questionElement, doc, "idnumber", question.getIdNumber());
-        }
 
         addSimpleElement(questionElement, doc, "responseformat", question.getResponseFormat());
         addSimpleElement(questionElement, doc, "responserequired", question.isResponseRequired() ? "1" : "0");

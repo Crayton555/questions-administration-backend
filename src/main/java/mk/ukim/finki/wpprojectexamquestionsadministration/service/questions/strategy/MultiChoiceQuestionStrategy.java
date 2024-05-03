@@ -77,11 +77,20 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         question.setCorrectFeedback(questionDto.getCorrectFeedback());
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
-        question.setAnswerOptions(questionDto.getAnswerOptions().stream().map(dto -> new MultiChoiceQuestion.Answer(dto.getFraction(), dto.getAnswerFormat(), dto.getText(), dto.getFeedback(), dto.getFeedbackFormat())).collect(Collectors.toList()));
+
+        question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
+        question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
+        question.setCorrectFeedbackFormat(questionDto.getCorrectFeedbackFormat());
+        question.setPartiallyCorrectFeedbackFormat(questionDto.getPartiallyCorrectFeedbackFormat());
+        question.setIncorrectFeedbackFormat(questionDto.getIncorrectFeedbackFormat());
+
+        if (questionDto.getAnswerOptions() != null) {
+            List<MultiChoiceQuestion.Answer> answerOptions = questionDto.getAnswerOptions().stream().map(dto -> new MultiChoiceQuestion.Answer(dto.getFraction(), dto.getAnswerFormat(), dto.getText(), dto.getFeedback(), dto.getFeedbackFormat())).collect(Collectors.toList());
+            question.setAnswerOptions(answerOptions);
+        }
 
         Category category = categoryRepository.findById(questionDto.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
         question.setCategory(category);
-
 
         List<Label> labels = labelRepository.findAllByIds(questionDto.getLabelIds());
         question.setLabels(labels);
@@ -105,17 +114,10 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
     @Override
     public Optional<MultiChoiceQuestion> saveFromXml(Element questionElement) {
         MultiChoiceQuestion question = new MultiChoiceQuestion();
-
-        // Extracting question attributes
         question.setQuestionType("MultiChoiceQuestion");
-        question.setName(getTextContentByTagName(questionElement, "name"));
-        question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
-        question.setQuestionTextFormat(extractFormat(questionElement, "questiontext"));
-        question.setGeneralFeedback(getTextContentByTagName(questionElement, "generalfeedback"));
-        question.setGeneralFeedbackFormat(extractFormat(questionElement, "generalfeedback"));
-        question.setPenalty(parseDouble(getTextContentByTagName(questionElement, "penalty")));
-        question.setHidden(parseBoolean(getTextContentByTagName(questionElement, "hidden")));
-        question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
+
+        importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
+
         question.setDefaultGrade(parseDouble(getTextContentByTagName(questionElement, "defaultgrade")));
         question.setSingle(parseBoolean(getTextContentByTagName(questionElement, "single")));
         question.setShuffleAnswers(parseBoolean(getTextContentByTagName(questionElement, "shuffleanswers")));
@@ -128,7 +130,6 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         question.setIncorrectFeedback(getTextContentByTagName(questionElement, "incorrectfeedback"));
         question.setIncorrectFeedbackFormat(extractFormat(questionElement, "incorrectfeedback"));
 
-        // Extracting and setting answers
         NodeList answerList = questionElement.getElementsByTagName("answer");
         List<MultiChoiceQuestion.Answer> answerOptions = new ArrayList<>();
         for (int i = 0; i < answerList.getLength(); i++) {
@@ -164,97 +165,11 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         return Optional.of(questionRepository.save(question));
     }
 
-    private FormatType extractFormat(Element questionElement, String elementName) {
-        NodeList nodeList = questionElement.getElementsByTagName(elementName);
-        if (nodeList.getLength() > 0) {
-            Element element = (Element) nodeList.item(0);
-            String format = element.getAttribute("format");
-            switch (format) {
-                case "html" -> {
-                    return FormatType.HTML;
-                }
-                case "moodle_auto_format" -> {
-                    return FormatType.MOODLE_AUTO_FORMAT;
-                }
-                case "plain_text" -> {
-                    return FormatType.PLAIN_TEXT;
-                }
-                case "markdown" -> {
-                    return FormatType.MARKDOWN;
-                }
-            }
-        }
-        return FormatType.HTML;
-    }
-
-    private double parseDouble(String value) {
-        try {
-            return Double.parseDouble(value);
-        } catch (NumberFormatException e) {
-            return 0.0;
-        }
-    }
-
-    private boolean parseBoolean(String value) {
-        return "true".equalsIgnoreCase(value) || "1".equals(value);
-    }
-
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
     @Override
     public Element toXmlElement(MultiChoiceQuestion question, Document doc) {
-        Element questionElement = doc.createElement("question");
+        Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "multichoice");
 
-        Element nameElement = doc.createElement("name");
-        Element nameTextElement = doc.createElement("text");
-        nameTextElement.appendChild(doc.createTextNode(question.getName()));
-        nameElement.appendChild(nameTextElement);
-        questionElement.appendChild(nameElement);
-
-        Element questionTextElement = doc.createElement("questiontext");
-        questionTextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
-        Element questionTextContent = doc.createElement("text");
-        if (requiresCdata(question.getQuestionText())) {
-            questionTextContent.appendChild(doc.createCDATASection(question.getQuestionText()));
-        } else {
-            questionTextContent.appendChild(doc.createTextNode(question.getQuestionText()));
-        }
-        questionTextElement.appendChild(questionTextContent);
-        questionElement.appendChild(questionTextElement);
-
-        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element generalFeedbackContent = doc.createElement("text");
-            if (requiresCdata(question.getGeneralFeedback())) {
-                generalFeedbackContent.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-            } else {
-                generalFeedbackContent.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-            }
-            generalFeedbackElement.appendChild(generalFeedbackContent);
-            questionElement.appendChild(generalFeedbackElement);
-        }
-
-        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
-        addSimpleElement(questionElement, doc, "penalty", String.valueOf(question.getPenalty()));
-        addSimpleElement(questionElement, doc, "hidden", question.isHidden() ? "1" : "0");
         addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
         addSimpleElement(questionElement, doc, "single", question.isSingle() ? "true" : "false");
         addSimpleElement(questionElement, doc, "answernumbering", question.getAnswerNumbering());

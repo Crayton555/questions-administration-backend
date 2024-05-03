@@ -94,25 +94,10 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
 
     @Override
     public Optional<ClozeQuestion> saveFromXml(Element questionElement) {
-        String name = getTextContentByTagName(questionElement, "name");
-        String questionText = getTextContentByTagName(questionElement, "questiontext");
-        FormatType questionTextFormat = extractFormat(questionElement, "questiontext");
-        String generalFeedback = getTextContentByTagName(questionElement, "generalfeedback");
-        FormatType generalFeedbackFormat = extractFormat(questionElement, "generalfeedback");
-        double penalty = Double.parseDouble(questionElement.getElementsByTagName("penalty").item(0).getTextContent());
-        boolean hidden = questionElement.getElementsByTagName("hidden").item(0).getTextContent().equals("1");
-        String idNumber = getTextContentByTagName(questionElement, "idnumber");
-
         ClozeQuestion question = new ClozeQuestion();
         question.setQuestionType("ClozeQuestion");
-        question.setName(name);
-        question.setQuestionText(questionText);
-        question.setQuestionTextFormat(questionTextFormat);
-        question.setGeneralFeedback(generalFeedback);
-        question.setGeneralFeedbackFormat(generalFeedbackFormat);
-        question.setPenalty(penalty);
-        question.setHidden(hidden);
-        question.setIdNumber(idNumber);
+
+        importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
 
         Category defaultCategory = categoryRepository.findAll().get(0);
         question.setCategory(defaultCategory);
@@ -133,95 +118,10 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
         return Optional.of(questionRepository.save(question));
     }
 
-    private FormatType extractFormat(Element questionElement, String elementName) {
-        NodeList nodeList = questionElement.getElementsByTagName(elementName);
-        if (nodeList.getLength() > 0) {
-            Element element = (Element) nodeList.item(0);
-            String format = element.getAttribute("format");
-            switch (format) {
-                case "html" -> {
-                    return FormatType.HTML;
-                }
-                case "moodle_auto_format" -> {
-                    return FormatType.MOODLE_AUTO_FORMAT;
-                }
-                case "plain_text" -> {
-                    return FormatType.PLAIN_TEXT;
-                }
-                case "markdown" -> {
-                    return FormatType.MARKDOWN;
-                }
-            }
-        }
-        return FormatType.HTML;
-    }
-
-    private String getTextContentByTagName(Element element, String tagName) {
-        NodeList elements = element.getElementsByTagName(tagName);
-        if (elements != null && elements.getLength() > 0) {
-            Node firstNode = elements.item(0);
-            if (firstNode != null && firstNode.hasChildNodes()) {
-                NodeList childNodes = firstNode.getChildNodes();
-                for (int i = 0; i < childNodes.getLength(); i++) {
-                    Node child = childNodes.item(i);
-                    if ("text".equals(child.getNodeName()) && child.getTextContent() != null) {
-                        return child.getTextContent();
-                    }
-                }
-            }
-            return firstNode.getTextContent() != null ? firstNode.getTextContent() : "";
-        }
-        return "";
-    }
-
     @Override
     public Element toXmlElement(ClozeQuestion question, Document doc) {
-        Element questionElement = doc.createElement("question");
+        Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "cloze");
-
-        Element nameElement = doc.createElement("name");
-        Element nameTextElement = doc.createElement("text");
-        nameTextElement.appendChild(doc.createTextNode(question.getName()));
-        nameElement.appendChild(nameTextElement);
-        questionElement.appendChild(nameElement);
-
-        Element questiontextElement = doc.createElement("questiontext");
-        questiontextElement.setAttribute("format", question.getQuestionTextFormat().toString().toLowerCase());
-        Element questionTextElement = doc.createElement("text");
-        if (requiresCdata(question.getQuestionText())) {
-            questionTextElement.appendChild(doc.createCDATASection(question.getQuestionText()));
-        } else {
-            questionTextElement.appendChild(doc.createTextNode(question.getQuestionText()));
-        }
-        questiontextElement.appendChild(questionTextElement);
-        questionElement.appendChild(questiontextElement);
-
-        if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element feedbackTextElement = doc.createElement("text");
-            if (requiresCdata(question.getGeneralFeedback())) {
-                feedbackTextElement.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
-            } else {
-                feedbackTextElement.appendChild(doc.createTextNode(question.getGeneralFeedback()));
-            }
-            generalFeedbackElement.appendChild(feedbackTextElement);
-            questionElement.appendChild(generalFeedbackElement);
-        }
-
-        Element penaltyElement = doc.createElement("penalty");
-        penaltyElement.appendChild(doc.createTextNode(String.valueOf(question.getPenalty())));
-        questionElement.appendChild(penaltyElement);
-
-        Element hiddenElement = doc.createElement("hidden");
-        hiddenElement.appendChild(doc.createTextNode(question.isHidden() ? "1" : "0"));
-        questionElement.appendChild(hiddenElement);
-
-        if (question.getIdNumber() != null && !question.getIdNumber().isEmpty()) {
-            Element idNumberElement = doc.createElement("idnumber");
-            idNumberElement.appendChild(doc.createTextNode(question.getIdNumber()));
-            questionElement.appendChild(idNumberElement);
-        }
         return questionElement;
     }
 }
