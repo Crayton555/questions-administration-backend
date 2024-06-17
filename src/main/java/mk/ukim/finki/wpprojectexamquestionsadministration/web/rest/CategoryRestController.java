@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"})
@@ -62,6 +63,13 @@ public class CategoryRestController {
     @GetMapping("/categories-with-questions")
     public ResponseEntity<List<Category>> getAllCategoriesWithQuestions() {
         List<Category> categories = categoryService.findAllCategoriesWithQuestions();
+        return ResponseEntity.ok(categories);
+    }
+    @GetMapping("/exclude-subtree/{categoryId}")
+    public ResponseEntity<List<Category>> getCategoriesExcludingSubtree(@PathVariable Long categoryId) {
+        Set<Long> excludedIds = categoryService.gatherDescendantCategoryIds(categoryId);
+        excludedIds.add(categoryId);
+        List<Category> categories = categoryService.findAllExcluding(excludedIds);
         return ResponseEntity.ok(categories);
     }
 }

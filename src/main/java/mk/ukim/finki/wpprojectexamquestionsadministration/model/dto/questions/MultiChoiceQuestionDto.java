@@ -32,6 +32,7 @@ public class MultiChoiceQuestionDto {
     private FormatType partiallyCorrectFeedbackFormat;
     private String incorrectFeedback;
     private FormatType incorrectFeedbackFormat;
+    private boolean showNumCorrect;
     private List<AnswerDto> answerOptions;
     private Long categoryId;
     private List<Long> labelIds;

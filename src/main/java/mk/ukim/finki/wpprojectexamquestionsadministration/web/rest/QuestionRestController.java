@@ -54,9 +54,6 @@ public class QuestionRestController {
         try {
             BaseQuestion question = null;
             switch (wrapper.getQuestionType().toLowerCase()) {
-                case "categoryquestion":
-                    question = questionService.save(objectMapper.treeToValue(wrapper.getQuestionData(), CategoryQuestionDto.class)).orElse(null);
-                    break;
                 case "clozequestion":
                     question = questionService.save(objectMapper.treeToValue(wrapper.getQuestionData(), ClozeQuestionDto.class)).orElse(null);
                     break;
@@ -90,9 +87,6 @@ public class QuestionRestController {
         try {
             BaseQuestion question = null;
             switch (wrapper.getQuestionType().toLowerCase()) {
-                case "categoryquestion":
-                    question = questionService.edit(id, objectMapper.treeToValue(wrapper.getQuestionData(), CategoryQuestionDto.class)).orElse(null);
-                    break;
                 case "clozequestion":
                     question = questionService.edit(id, objectMapper.treeToValue(wrapper.getQuestionData(), ClozeQuestionDto.class)).orElse(null);
                     break;

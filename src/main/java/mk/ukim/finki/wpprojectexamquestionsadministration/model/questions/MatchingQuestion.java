@@ -25,8 +25,7 @@ public class MatchingQuestion extends BaseQuestion {
     private String incorrectFeedback;
     @Enumerated(EnumType.STRING)
     private FormatType incorrectFeedbackFormat = FormatType.HTML;
-    private boolean showNumCorrect = false;
-
+    private boolean showNumCorrect;
     @ElementCollection
     private List<SubQuestion> subQuestions = new ArrayList<>();
 

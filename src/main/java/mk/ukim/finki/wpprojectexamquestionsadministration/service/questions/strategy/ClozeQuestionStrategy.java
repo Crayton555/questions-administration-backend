@@ -99,22 +99,6 @@ public class ClozeQuestionStrategy implements QuestionStrategy<ClozeQuestion, Cl
 
         importBaseQuestionAttributes(questionElement, question, categoryRepository, labelRepository);
 
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
-
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
-
         return Optional.of(questionRepository.save(question));
     }
 

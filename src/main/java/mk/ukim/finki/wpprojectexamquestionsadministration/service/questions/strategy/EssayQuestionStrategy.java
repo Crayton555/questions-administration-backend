@@ -130,22 +130,6 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         question.setResponseTemplate(getTextContentByTagName(questionElement, "responsetemplate"));
         question.setResponseTemplateFormat(extractFormat(questionElement, "responsetemplate"));
 
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
-
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
-
         return Optional.of(questionRepository.save(question));
     }
 
@@ -169,36 +153,70 @@ public class EssayQuestionStrategy implements QuestionStrategy<EssayQuestion, Es
         addSimpleElement(questionElement, doc, "responseformat", question.getResponseFormat());
         addSimpleElement(questionElement, doc, "responserequired", question.isResponseRequired() ? "1" : "0");
         addSimpleElement(questionElement, doc, "responsefieldlines", String.valueOf(question.getResponseFieldLines()));
+
+        addWordLimitElement(questionElement, doc, "minwordlimit", question.getMinWordLimit());
+        addWordLimitElement(questionElement, doc, "maxwordlimit", question.getMaxWordLimit());
+
         addSimpleElement(questionElement, doc, "attachments", String.valueOf(question.getAttachments()));
         addSimpleElement(questionElement, doc, "attachmentsrequired", String.valueOf(question.getAttachmentsRequired()));
         addSimpleElement(questionElement, doc, "maxbytes", String.valueOf(question.getMaxBytes()));
 
-        if (question.getGraderInfo() != null && !question.getGraderInfo().isEmpty()) {
-            Element graderInfoElement = doc.createElement("graderinfo");
-            graderInfoElement.setAttribute("format", question.getGraderInfoFormat().toString().toLowerCase());
-            Element graderInfoContent = doc.createElement("text");
-            graderInfoContent.appendChild(doc.createTextNode(question.getGraderInfo()));
-            graderInfoElement.appendChild(graderInfoContent);
-            questionElement.appendChild(graderInfoElement);
-        }
+        addFileTypesList(questionElement, doc, question.getFileTypesList());
 
-        if (question.getResponseTemplate() != null && !question.getResponseTemplate().isEmpty()) {
-            Element responseTemplateElement = doc.createElement("responsetemplate");
-            responseTemplateElement.setAttribute("format", question.getResponseTemplateFormat().toString().toLowerCase());
-            Element responseTemplateContent = doc.createElement("text");
-            responseTemplateContent.appendChild(doc.createTextNode(question.getResponseTemplate()));
-            responseTemplateElement.appendChild(responseTemplateContent);
-            questionElement.appendChild(responseTemplateElement);
+        Element graderInfoElement = doc.createElement("graderinfo");
+        graderInfoElement.setAttribute("format", question.getGraderInfoFormat() != null ? question.getGraderInfoFormat().toString().toLowerCase() : "plain");
+        Element graderInfoContent = doc.createElement("text");
+        if (question.getGraderInfo() != null && !question.getGraderInfo().isEmpty()) {
+            graderInfoContent.appendChild(doc.createTextNode(question.getGraderInfo()));
+        } else {
+            graderInfoContent.appendChild(doc.createTextNode(""));
         }
+        graderInfoElement.appendChild(graderInfoContent);
+        questionElement.appendChild(graderInfoElement);
+
+        Element responseTemplateElement = doc.createElement("responsetemplate");
+        responseTemplateElement.setAttribute("format", question.getResponseTemplateFormat() != null ? question.getResponseTemplateFormat().toString().toLowerCase() : "plain");
+        Element responseTemplateContent = doc.createElement("text");
+        if (question.getResponseTemplate() != null && !question.getResponseTemplate().isEmpty()) {
+            responseTemplateContent.appendChild(doc.createTextNode(question.getResponseTemplate()));
+        } else {
+            responseTemplateContent.appendChild(doc.createTextNode(""));
+        }
+        responseTemplateElement.appendChild(responseTemplateContent);
+        questionElement.appendChild(responseTemplateElement);
 
         return questionElement;
     }
 
     private void addSimpleElement(Element parent, Document doc, String tagName, String textContent) {
-        if (textContent != null && !textContent.isEmpty()) {
-            Element element = doc.createElement(tagName);
+        Element element = doc.createElement(tagName);
+        if (textContent == null || textContent.isEmpty()) {
+            parent.appendChild(element);
+        } else {
             element.appendChild(doc.createTextNode(textContent));
             parent.appendChild(element);
         }
+    }
+
+    private void addWordLimitElement(Element parent, Document doc, String tagName, Integer wordLimit) {
+        Element element = doc.createElement(tagName);
+        if (wordLimit == null) {
+            parent.appendChild(element);
+        } else {
+            element.appendChild(doc.createTextNode(String.valueOf(wordLimit)));
+            parent.appendChild(element);
+        }
+    }
+
+    private void addFileTypesList(Element parent, Document doc, List<String> fileTypes) {
+        Element fileTypesListElement = doc.createElement("filetypeslist");
+        if (fileTypes != null && !fileTypes.isEmpty()) {
+            for (String fileType : fileTypes) {
+                Element fileTypeElement = doc.createElement("filetype");
+                fileTypeElement.appendChild(doc.createTextNode(fileType));
+                fileTypesListElement.appendChild(fileTypeElement);
+            }
+        }
+        parent.appendChild(fileTypesListElement);
     }
 }

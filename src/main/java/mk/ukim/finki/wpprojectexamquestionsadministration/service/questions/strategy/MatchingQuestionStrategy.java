@@ -137,22 +137,6 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         }
         question.setSubQuestions(subQuestions);
 
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
-
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
-
         return Optional.of(questionRepository.save(question));
     }
 
@@ -161,8 +145,40 @@ public class MatchingQuestionStrategy implements QuestionStrategy<MatchingQuesti
         Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "matching");
 
-//        addSimpleElement(questionElement, doc, "defaultgrade", String.valueOf(question.getDefaultGrade()));
         addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
+
+        Element correctFeedbackElement = doc.createElement("correctfeedback");
+        correctFeedbackElement.setAttribute("format", question.getCorrectFeedbackFormat().toString().toLowerCase());
+        Element correctFeedbackTextElement = doc.createElement("text");
+        if (question.getCorrectFeedback() != null && !question.getCorrectFeedback().isEmpty()) {
+            correctFeedbackTextElement.appendChild(doc.createTextNode(question.getCorrectFeedback()));
+        }
+        correctFeedbackElement.appendChild(correctFeedbackTextElement);
+        questionElement.appendChild(correctFeedbackElement);
+
+        Element partiallyCorrectFeedbackElement = doc.createElement("partiallycorrectfeedback");
+        partiallyCorrectFeedbackElement.setAttribute("format", question.getPartiallyCorrectFeedbackFormat().toString().toLowerCase());
+        Element partiallyCorrectFeedbackTextElement = doc.createElement("text");
+        if (question.getPartiallyCorrectFeedback() != null && !question.getPartiallyCorrectFeedback().isEmpty()) {
+            partiallyCorrectFeedbackTextElement.appendChild(doc.createTextNode(question.getPartiallyCorrectFeedback()));
+        }
+        partiallyCorrectFeedbackElement.appendChild(partiallyCorrectFeedbackTextElement);
+        questionElement.appendChild(partiallyCorrectFeedbackElement);
+
+        Element incorrectFeedbackElement = doc.createElement("incorrectfeedback");
+        incorrectFeedbackElement.setAttribute("format", question.getIncorrectFeedbackFormat().toString().toLowerCase());
+        Element incorrectFeedbackTextElement = doc.createElement("text");
+        if (question.getIncorrectFeedback() != null && !question.getIncorrectFeedback().isEmpty()) {
+            incorrectFeedbackTextElement.appendChild(doc.createTextNode(question.getIncorrectFeedback()));
+        }
+        incorrectFeedbackElement.appendChild(incorrectFeedbackTextElement);
+        questionElement.appendChild(incorrectFeedbackElement);
+
+        Element showNumCorrectElement = doc.createElement("shownumcorrect");
+        if (question.isShowNumCorrect()) {
+            showNumCorrectElement.appendChild(doc.createTextNode("1"));
+        }
+        questionElement.appendChild(showNumCorrectElement);
 
         for (MatchingQuestion.SubQuestion subQuestion : question.getSubQuestions()) {
             Element subQuestionElement = doc.createElement("subquestion");

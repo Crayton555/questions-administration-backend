@@ -134,22 +134,6 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
             question.setAnswer(answer);
         }
 
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
-
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
-
         return Optional.of(questionRepository.save(question));
     }
 
@@ -162,21 +146,25 @@ public class ShortAnswerQuestionStrategy implements QuestionStrategy<ShortAnswer
 
         if (question.getAnswer() != null) {
             Element answerElement = doc.createElement("answer");
-            answerElement.setAttribute("fraction", String.valueOf(question.getAnswer().getFraction()));
             answerElement.setAttribute("format", question.getAnswer().getAnswerFormat().toString().toLowerCase());
+            answerElement.setAttribute("fraction", String.valueOf(question.getAnswer().getFraction()));
 
             Element textElement = doc.createElement("text");
-            textElement.appendChild(doc.createTextNode(question.getAnswer().getText()));
+            if (requiresCdata(question.getAnswer().getText())) {
+                textElement.appendChild(doc.createCDATASection(question.getAnswer().getText()));
+            } else {
+                textElement.appendChild(doc.createTextNode(question.getAnswer().getText()));
+            }
             answerElement.appendChild(textElement);
 
+            Element feedbackElement = doc.createElement("feedback");
+            feedbackElement.setAttribute("format", question.getAnswer().getFeedbackFormat().toString().toLowerCase());
+            Element feedbackTextElement = doc.createElement("text");
             if (question.getAnswer().getFeedback() != null && !question.getAnswer().getFeedback().isEmpty()) {
-                Element feedbackElement = doc.createElement("feedback");
-                feedbackElement.setAttribute("format", question.getAnswer().getFeedbackFormat().toString().toLowerCase());
-                Element feedbackTextElement = doc.createElement("text");
                 feedbackTextElement.appendChild(doc.createTextNode(question.getAnswer().getFeedback()));
-                feedbackElement.appendChild(feedbackTextElement);
-                answerElement.appendChild(feedbackElement);
             }
+            feedbackElement.appendChild(feedbackTextElement);
+            answerElement.appendChild(feedbackElement);
 
             questionElement.appendChild(answerElement);
         }

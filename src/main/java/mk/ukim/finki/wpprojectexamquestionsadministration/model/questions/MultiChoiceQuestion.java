@@ -30,9 +30,9 @@ public class MultiChoiceQuestion extends BaseQuestion {
     private String incorrectFeedback;
     @Enumerated(EnumType.STRING)
     private FormatType incorrectFeedbackFormat = FormatType.HTML;
+    private boolean showNumCorrect;
     @ElementCollection
     private List<Answer> answerOptions = new ArrayList<>();
-
     @Data
     @Embeddable
     @NoArgsConstructor

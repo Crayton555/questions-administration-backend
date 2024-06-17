@@ -77,6 +77,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         question.setCorrectFeedback(questionDto.getCorrectFeedback());
         question.setPartiallyCorrectFeedback(questionDto.getPartiallyCorrectFeedback());
         question.setIncorrectFeedback(questionDto.getIncorrectFeedback());
+        question.setShowNumCorrect(questionDto.isShowNumCorrect());
 
         question.setQuestionTextFormat(questionDto.getQuestionTextFormat());
         question.setGeneralFeedbackFormat(questionDto.getGeneralFeedbackFormat());
@@ -129,6 +130,7 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         question.setPartiallyCorrectFeedbackFormat(extractFormat(questionElement, "partiallycorrectfeedback"));
         question.setIncorrectFeedback(getTextContentByTagName(questionElement, "incorrectfeedback"));
         question.setIncorrectFeedbackFormat(extractFormat(questionElement, "incorrectfeedback"));
+        question.setShowNumCorrect(parseBoolean(getTextContentByTagName(questionElement, "shownumcorrect")));
 
         NodeList answerList = questionElement.getElementsByTagName("answer");
         List<MultiChoiceQuestion.Answer> answerOptions = new ArrayList<>();
@@ -148,20 +150,6 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         }
         question.setAnswerOptions(answerOptions);
 
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
-        NodeList tagsList = questionElement.getElementsByTagName("tag");
-        for (int i = 0; i < tagsList.getLength(); i++) {
-            Node tagNode = tagsList.item(i);
-            if (tagNode.getNodeType() == Node.ELEMENT_NODE) {
-                Element tagElement = (Element) tagNode;
-                String tagText = tagElement.getTextContent();
-                if (tagText != null && !tagText.trim().isEmpty()) {
-                    Label label = labelRepository.findByName(tagText).orElseGet(() -> labelRepository.save(new Label(tagText)));
-                    question.getLabels().add(label);
-                }
-            }
-        }
         return Optional.of(questionRepository.save(question));
     }
 
@@ -170,10 +158,16 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
         Element questionElement = QuestionStrategy.super.toXmlElement(question, doc);
         questionElement.setAttribute("type", "multichoice");
 
-        addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
         addSimpleElement(questionElement, doc, "single", question.isSingle() ? "true" : "false");
+        addSimpleElement(questionElement, doc, "shuffleanswers", question.isShuffleAnswers() ? "true" : "false");
         addSimpleElement(questionElement, doc, "answernumbering", question.getAnswerNumbering());
         addSimpleElement(questionElement, doc, "showstandardinstruction", question.isShowStandardInstruction() ? "1" : "0");
+
+        Element showNumCorrectElement = doc.createElement("shownumcorrect");
+        if (question.isShowNumCorrect()) {
+            showNumCorrectElement.appendChild(doc.createTextNode("1"));
+        }
+        questionElement.appendChild(showNumCorrectElement);
 
         addFeedbackElement(questionElement, doc, "correctfeedback", question.getCorrectFeedback(), question.getCorrectFeedbackFormat());
         addFeedbackElement(questionElement, doc, "partiallycorrectfeedback", question.getPartiallyCorrectFeedback(), question.getPartiallyCorrectFeedbackFormat());
@@ -181,8 +175,8 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
 
         for (MultiChoiceQuestion.Answer answer : question.getAnswerOptions()) {
             Element answerElement = doc.createElement("answer");
-            answerElement.setAttribute("fraction", String.valueOf(answer.getFraction()));
             answerElement.setAttribute("format", answer.getAnswerFormat().toString().toLowerCase());
+            answerElement.setAttribute("fraction", String.valueOf(answer.getFraction()));
 
             Element textElement = doc.createElement("text");
             if (requiresCdata(answer.getText())) {
@@ -192,18 +186,18 @@ public class MultiChoiceQuestionStrategy implements QuestionStrategy<MultiChoice
             }
             answerElement.appendChild(textElement);
 
+            Element feedbackElement = doc.createElement("feedback");
+            feedbackElement.setAttribute("format", answer.getFeedbackFormat().toString().toLowerCase());
+            Element feedbackTextElement = doc.createElement("text");
             if (answer.getFeedback() != null && !answer.getFeedback().isEmpty()) {
-                Element feedbackElement = doc.createElement("feedback");
-                feedbackElement.setAttribute("format", answer.getFeedbackFormat().toString().toLowerCase());
-                Element feedbackTextElement = doc.createElement("text");
                 if (requiresCdata(answer.getFeedback())) {
                     feedbackTextElement.appendChild(doc.createCDATASection(answer.getFeedback()));
                 } else {
                     feedbackTextElement.appendChild(doc.createTextNode(answer.getFeedback()));
                 }
-                feedbackElement.appendChild(feedbackTextElement);
-                answerElement.appendChild(feedbackElement);
             }
+            feedbackElement.appendChild(feedbackTextElement);
+            answerElement.appendChild(feedbackElement);
 
             questionElement.appendChild(answerElement);
         }

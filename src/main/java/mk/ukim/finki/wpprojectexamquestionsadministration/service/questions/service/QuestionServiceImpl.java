@@ -3,12 +3,14 @@ package mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.ser
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Category;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.Label;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.dto.LabelDto;
+import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.FormatType;
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.BaseQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.QuestionRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.service.questions.strategy.QuestionStrategy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -20,10 +22,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class QuestionServiceImpl<T extends BaseQuestion, D> implements IQuestionService<T, D> {
@@ -32,14 +31,12 @@ public class QuestionServiceImpl<T extends BaseQuestion, D> implements IQuestion
     private final CategoryRepository categoryRepository;
     private final LabelRepository labelRepository;
 
-    public QuestionServiceImpl(List<QuestionStrategy<? extends BaseQuestion, ?>> strategyList,
-                               QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
+    public QuestionServiceImpl(List<QuestionStrategy<? extends BaseQuestion, ?>> strategyList, QuestionRepository questionRepository, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         this.questionRepository = questionRepository;
         this.categoryRepository = categoryRepository;
         this.labelRepository = labelRepository;
         this.strategies = new HashMap<>();
-        strategyList.forEach(strategy ->
-                strategies.put(strategy.getQuestionDtoType(), strategy));
+        strategyList.forEach(strategy -> strategies.put(strategy.getQuestionDtoType(), strategy));
     }
 
     @Override
@@ -90,36 +87,78 @@ public class QuestionServiceImpl<T extends BaseQuestion, D> implements IQuestion
 
     @Override
     public void addNewLabelToQuestion(Long questionId, LabelDto labelDto) {
-        BaseQuestion question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Question not found"));
+        BaseQuestion question = questionRepository.findById(questionId).orElseThrow(() -> new IllegalArgumentException("Question not found"));
         Label label = new Label();
         label.setName(labelDto.getName());
         label = labelRepository.save(label);
         question.getLabels().add(label);
         questionRepository.save(question);
     }
-
     @Override
+    @Transactional
     public void processQuestionsFromXml(InputStream xmlData) {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder;
+        Category currentCategory = null;
         try {
             dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(xmlData);
             doc.getDocumentElement().normalize();
-
             NodeList questionList = doc.getElementsByTagName("question");
             for (int i = 0; i < questionList.getLength(); i++) {
                 Node questionNode = questionList.item(i);
                 if (questionNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element questionElement = (Element) questionNode;
                     String type = questionElement.getAttribute("type");
+                    if ("category".equals(type.toLowerCase())) {
+                        Category parentCategory = null;
+                        Element categoryElement = (Element) questionElement.getElementsByTagName("category").item(0);
+                        String categoryPath = categoryElement.getElementsByTagName("text").item(0).getTextContent();
+                        String[] pathParts = categoryPath.split("/");
+                        String categoryName = pathParts[pathParts.length - 1].trim();
+                        String parentPath = String.join("/", Arrays.copyOf(pathParts, pathParts.length - 1));
+                        boolean parentExists = categoryRepository.findByName(parentPath).isPresent();
+                        if (parentExists) {
+                            parentCategory = categoryRepository.findByName(parentPath).get();
+                        }
+                        if (!parentExists && pathParts.length > 1) {
+                            String secondToLastCategory = pathParts[pathParts.length - 2].trim();
+                            boolean secondToLastExists = categoryRepository.findByName(secondToLastCategory).isPresent();
+                            if (secondToLastExists) {
+                                parentCategory = categoryRepository.findByName(secondToLastCategory).get();
+                            }
+                            if (!secondToLastExists) {
+                                categoryName = categoryPath;
+                            }
+                        }
 
-                    QuestionStrategy<? extends BaseQuestion, ?> strategy = findStrategyByType(type);
-                    if (strategy != null) {
-                        strategy.saveFromXml(questionElement);
+                        Element infoElement = (Element) questionElement.getElementsByTagName("info").item(0);
+                        String infoFormat = infoElement.getAttribute("format");
+                        String infoText = infoElement.getElementsByTagName("text").item(0).getTextContent();
+                        FormatType formatType = FormatType.valueOf(infoFormat.toUpperCase());
+
+                        Element idNumberElement = (Element) questionElement.getElementsByTagName("idnumber").item(0);
+                        String idNumber = idNumberElement != null ? idNumberElement.getTextContent() : "";
+
+                        Optional<Category> categoryOpt = categoryRepository.findByName(categoryName);
+                        if (categoryOpt.isPresent()) {
+                            currentCategory = categoryOpt.get();
+                            currentCategory.setInfo(infoText);
+                            currentCategory.setInfoTextFormat(formatType);
+                            currentCategory.setIdNumber(idNumber);
+                        } else {
+                            currentCategory = new Category(categoryName, infoText, formatType, idNumber, parentCategory);
+                            categoryRepository.save(currentCategory);
+                        }
                     } else {
-                        // Handle unknown type or log it
+                        QuestionStrategy<? extends BaseQuestion, ?> strategy = findStrategyByType(type);
+                        if (strategy != null) {
+                            BaseQuestion question = strategy.saveFromXml(questionElement).orElse(null);
+                            if (question != null && currentCategory != null) {
+                                question.setCategory(currentCategory);
+                                questionRepository.save(question);
+                            }
+                        }
                     }
                 }
             }
@@ -127,9 +166,10 @@ public class QuestionServiceImpl<T extends BaseQuestion, D> implements IQuestion
             throw new RuntimeException(e);
         }
     }
+
     private QuestionStrategy<? extends BaseQuestion, ?> findStrategyByType(String type) {
-        for(QuestionStrategy<? extends BaseQuestion, ?> strategy : strategies.values()) {
-            if(strategy.isResponsibleFor(type)) {
+        for (QuestionStrategy<? extends BaseQuestion, ?> strategy : strategies.values()) {
+            if (strategy.isResponsibleFor(type)) {
                 return strategy;
             }
         }

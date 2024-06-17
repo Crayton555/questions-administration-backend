@@ -6,15 +6,14 @@ import mk.ukim.finki.wpprojectexamquestionsadministration.model.enumerations.For
 import mk.ukim.finki.wpprojectexamquestionsadministration.model.questions.BaseQuestion;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.CategoryRepository;
 import mk.ukim.finki.wpprojectexamquestionsadministration.repository.jpa.LabelRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 public interface QuestionStrategy<T extends BaseQuestion, D> {
     Optional<T> save(D questionDto);
@@ -33,6 +32,7 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
 
     public Optional<T> saveFromXml(Element questionElement);
 
+    @Transactional
     default void importBaseQuestionAttributes(Element questionElement, BaseQuestion question, CategoryRepository categoryRepository, LabelRepository labelRepository) {
         question.setName(getTextContentByTagName(questionElement, "name"));
         question.setQuestionText(getTextContentByTagName(questionElement, "questiontext"));
@@ -44,6 +44,7 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
         question.setIdNumber(getTextContentByTagName(questionElement, "idnumber"));
 
         NodeList tagsContainerList = questionElement.getElementsByTagName("tags");
+        Map<String, Label> labelCache = new HashMap<>();
         if (tagsContainerList.getLength() > 0) {
             Node tagsContainerNode = tagsContainerList.item(0);
             if (tagsContainerNode.getNodeType() == Node.ELEMENT_NODE && tagsContainerNode.hasChildNodes()) {
@@ -55,8 +56,13 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
                         Element tagElement = (Element) tagNode;
                         String tagText = tagElement.getTextContent().trim();
                         if (!tagText.isEmpty()) {
-                            Label label = labelRepository.findByName(tagText)
-                                    .orElseGet(() -> labelRepository.save(new Label(tagText)));
+                            Label label = labelCache.computeIfAbsent(tagText, t -> {
+                                Label foundLabel = labelRepository.findByName(t).orElse(null);
+                                if (foundLabel == null) {
+                                    foundLabel = labelRepository.save(new Label(t));
+                                }
+                                return foundLabel;
+                            });
                             labels.add(label);
                         }
                     }
@@ -64,9 +70,6 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
                 question.setLabels(labels);
             }
         }
-
-        Category defaultCategory = categoryRepository.findAll().get(0);
-        question.setCategory(defaultCategory);
     }
 
     default Element toXmlElement(T question, Document doc) {
@@ -89,18 +92,20 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
         questiontextElement.appendChild(questionTextElement);
         questionElement.appendChild(questiontextElement);
 
+        Element generalFeedbackElement = doc.createElement("generalfeedback");
+        generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
+        Element feedbackTextElement = doc.createElement("text");
+
         if (question.getGeneralFeedback() != null && !question.getGeneralFeedback().isEmpty()) {
-            Element generalFeedbackElement = doc.createElement("generalfeedback");
-            generalFeedbackElement.setAttribute("format", question.getGeneralFeedbackFormat().toString().toLowerCase());
-            Element feedbackTextElement = doc.createElement("text");
             if (requiresCdata(question.getGeneralFeedback())) {
                 feedbackTextElement.appendChild(doc.createCDATASection(question.getGeneralFeedback()));
             } else {
                 feedbackTextElement.appendChild(doc.createTextNode(question.getGeneralFeedback()));
             }
-            generalFeedbackElement.appendChild(feedbackTextElement);
-            questionElement.appendChild(generalFeedbackElement);
         }
+
+        generalFeedbackElement.appendChild(feedbackTextElement);
+        questionElement.appendChild(generalFeedbackElement);
 
         addOptionalElementByReflection(question, "defaultGrade", doc, questionElement);
 
@@ -112,11 +117,24 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
         hiddenElement.appendChild(doc.createTextNode(question.isHidden() ? "1" : "0"));
         questionElement.appendChild(hiddenElement);
 
+        Element idNumberElement = doc.createElement("idnumber");
         if (question.getIdNumber() != null && !question.getIdNumber().isEmpty()) {
-            Element idNumberElement = doc.createElement("idnumber");
             idNumberElement.appendChild(doc.createTextNode(question.getIdNumber()));
-            questionElement.appendChild(idNumberElement);
         }
+        questionElement.appendChild(idNumberElement);
+
+        if (question.getLabels() != null && !question.getLabels().isEmpty()) {
+            Element tagsElement = doc.createElement("tags");
+            for (Label label : question.getLabels()) {
+                Element tagElement = doc.createElement("tag");
+                Element textElement = doc.createElement("text");
+                textElement.appendChild(doc.createTextNode(label.getName()));
+                tagElement.appendChild(textElement);
+                tagsElement.appendChild(tagElement);
+            }
+            questionElement.appendChild(tagsElement);
+        }
+
         return questionElement;
     }
 
@@ -189,6 +207,7 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
             default -> FormatType.HTML;
         };
     }
+
     private void addOptionalElementByReflection(T question, String fieldName, Document doc, Element parent) {
         try {
             Field field = question.getClass().getDeclaredField(fieldName);
@@ -201,6 +220,7 @@ public interface QuestionStrategy<T extends BaseQuestion, D> {
             System.out.println("Field '" + fieldName + "' not found or not accessible in " + question.getClass().getSimpleName());
         }
     }
+
     private void appendTextElement(Document doc, Element parent, String elementName, String textContent) {
         Element element = doc.createElement(elementName);
         element.appendChild(doc.createTextNode(textContent));
