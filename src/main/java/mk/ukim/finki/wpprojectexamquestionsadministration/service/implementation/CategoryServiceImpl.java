@@ -49,6 +49,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
         return Optional.of(categoryRepository.save(category));
     }
+
     @Override
     @Transactional
     public Optional<Category> edit(Long id, CategoryDto categoryDto) {
@@ -93,7 +94,8 @@ public class CategoryServiceImpl implements CategoryService {
     public List<Category> findAllCategoriesWithQuestions() {
         return categoryRepository.findAllWithQuestions();
     }
-@Override
+
+    @Override
     public Set<Long> gatherDescendantCategoryIds(Long categoryId) {
         Set<Long> descendantIds = new HashSet<>();
         Optional<Category> category = categoryRepository.findById(categoryId);
@@ -102,8 +104,8 @@ public class CategoryServiceImpl implements CategoryService {
         }
         return descendantIds;
     }
-    @Override
 
+    @Override
     public void collectDescendantIds(Category category, Set<Long> descendantIds) {
         List<Category> subcategories = category.getSubcategories();
         for (Category subcategory : subcategories) {
@@ -111,6 +113,7 @@ public class CategoryServiceImpl implements CategoryService {
             collectDescendantIds(subcategory, descendantIds);
         }
     }
+
     @Override
     public List<Category> findAllExcluding(Set<Long> excludedIds) {
         System.out.println("Excluded IDs: " + excludedIds);

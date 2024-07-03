@@ -32,7 +32,9 @@ public class QuestionRestController {
     private final QuestionXmlExportService xmlExportService;
 
     @Autowired
-    public QuestionRestController(IQuestionService<BaseQuestion, Object> questionService, ObjectMapper objectMapper, QuestionXmlExportService xmlExportService) {
+    public QuestionRestController(IQuestionService<BaseQuestion, Object> questionService,
+                                  ObjectMapper objectMapper,
+                                  QuestionXmlExportService xmlExportService) {
         this.questionService = questionService;
         this.objectMapper = objectMapper;
         this.xmlExportService = xmlExportService;
@@ -88,7 +90,8 @@ public class QuestionRestController {
             BaseQuestion question = null;
             switch (wrapper.getQuestionType().toLowerCase()) {
                 case "clozequestion":
-                    question = questionService.edit(id, objectMapper.treeToValue(wrapper.getQuestionData(), ClozeQuestionDto.class)).orElse(null);
+                    question = questionService.edit(id, objectMapper.treeToValue(wrapper.getQuestionData(), ClozeQuestionDto.class))
+                            .orElse(null);
                     break;
                 case "essayquestion":
                     question = questionService.edit(id, objectMapper.treeToValue(wrapper.getQuestionData(), EssayQuestionDto.class)).orElse(null);
@@ -121,7 +124,8 @@ public class QuestionRestController {
 
     @PutMapping("/{questionId}/change-question-category/{newCategoryId}")
     public ResponseEntity<BaseQuestion> changeQuestionCategory(@PathVariable Long questionId, @PathVariable Long newCategoryId) {
-        return questionService.changeQuestionCategory(questionId, newCategoryId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return questionService.changeQuestionCategory(questionId, newCategoryId).map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{questionId}/labels")

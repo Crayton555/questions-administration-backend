@@ -27,23 +27,17 @@ public class CategoryRestController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Category> getCategoryById(@PathVariable Long id) {
-        return this.categoryService.findById(id)
-                .map(category -> ResponseEntity.ok().body(category))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return this.categoryService.findById(id).map(category -> ResponseEntity.ok().body(category)).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/add")
     public ResponseEntity<Category> createCategory(@RequestBody CategoryDto categoryDto) {
-        return this.categoryService.save(categoryDto)
-                .map(category -> ResponseEntity.ok().body(category))
-                .orElseGet(() -> ResponseEntity.badRequest().build());
+        return this.categoryService.save(categoryDto).map(category -> ResponseEntity.ok().body(category)).orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
     @PutMapping("/edit/{id}")
     public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody CategoryDto categoryDto) {
-        return this.categoryService.edit(id, categoryDto)
-                .map(category -> ResponseEntity.ok().body(category))
-                .orElseGet(() -> ResponseEntity.badRequest().build());
+        return this.categoryService.edit(id, categoryDto).map(category -> ResponseEntity.ok().body(category)).orElseGet(() -> ResponseEntity.badRequest().build());
     }
 
     @DeleteMapping("/delete/{id}")
@@ -56,15 +50,16 @@ public class CategoryRestController {
     @GetMapping("/{id}/questions")
     public ResponseEntity<List<BaseQuestion>> getAllQuestionsByCategory(@PathVariable Long id) {
         List<BaseQuestion> questions = categoryService.getAllQuestionsByCategory(id);
-        if (questions.isEmpty())
-            return ResponseEntity.badRequest().build();
+        if (questions.isEmpty()) return ResponseEntity.badRequest().build();
         return ResponseEntity.ok(questions);
     }
+
     @GetMapping("/categories-with-questions")
     public ResponseEntity<List<Category>> getAllCategoriesWithQuestions() {
         List<Category> categories = categoryService.findAllCategoriesWithQuestions();
         return ResponseEntity.ok(categories);
     }
+
     @GetMapping("/exclude-subtree/{categoryId}")
     public ResponseEntity<List<Category>> getCategoriesExcludingSubtree(@PathVariable Long categoryId) {
         Set<Long> excludedIds = categoryService.gatherDescendantCategoryIds(categoryId);
